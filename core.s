@@ -1043,7 +1043,7 @@ notrdrw:
 notlost:
 	staa ,x			; move it
 	cmpa #255		; now carried ?
-	beq chkloc2
+	bne chkloc2
 	inc carried		; so raise count
 chkloc2:
 	cmpa location		; moved into view ?
@@ -1503,11 +1503,11 @@ is_random:
 ;
 ;	If we are doing continuations and hit a non continuation line
 ;	then we have finished. Otherwise the verb/noun must match for us
-;	to process the line.
+;	to process the line but once we have one match we stop.
 ;
 not_cont:
 	inx			; Skip header byte
-	tst continuation
+	tst actmatch
 	bne action_done		; hit a new block - done
 	ldd ,x			; FIXME: allow R bit on verb/noun pairs
 	inx			; Skip verb / noun pair
@@ -1536,34 +1536,6 @@ match_ok:
 	inc linematch
 do_line:
 	jsr perform_line	; run the conditions and actions
-	ldx linestart		; recover start of line
-	tst continuation	; continuation - keep scanning
-	beq notcont
-
-	;
-	;	Continuation block or do we need to finish ?
-	;
-	ldaa ,x
-	bita #$80		; 0, x lines don't stop processing
-	bne next_line
-	;
-	;	Hit the end of the continuation - we are done
-	;
-	bra action_done		; all done and good
-
-	;
-	;	Continuation is not set, check if we are done
-	;
-notcont:
-	ldaa ,x			; auto lines all run
-	bita #$80
-	bne next_line
-	;
-	;	Not an auto line, so we did we complete ?
-	;
-	tst actmatch
-	beq next_line		; Nope.... keep looking
-	bra all_finished
 ;
 ;	X is the head byte of the current line. Use this to find
 ;	the next line.
@@ -1587,8 +1559,8 @@ squashed1:
 	abx			; Move over actions
 	ldaa ,x			; round we go
 	cmpa #255		; 255 is end of table
-	bne next_action
-	bra action_done
+	beq action_done
+	jmp next_action
 squashed:
 	bita #$60		; 0x40/0x20 = random %age suppressed
 	bne squashed1		; squashed1 skips the header
@@ -1923,6 +1895,8 @@ actmatch:
 	fcb 0
 condacts:
 	fcb 0		; condact header byte for this line
+continuation:
+	fcb 0
 argh:
 	fcb 0		; argh high byte for last
 argp:
@@ -1930,8 +1904,6 @@ argp:
 args:
 	zmb 10			; max 5 parameters
 
-continuation:
-	fcb 0
 
 	zmb 256			; overkill
 stacktop:
