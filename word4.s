@@ -48,7 +48,7 @@ nextsp:
 ;
 ;	Clear tail of 4 char word
 ;
-word_clear
+word_clear:
 	ldx #wordbuf
 wordclr4l:
 	ldaa ,x
