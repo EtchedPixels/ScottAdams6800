@@ -278,7 +278,8 @@ static void string(const char *p)
 
 	fprintf(output, "\tfcc %c", c);
 	while(*p) {
-		fprintf(output, "%c", toupper(*p));;
+		if (*p != '\n')
+			fprintf(output, "%c", toupper(*p));
 		p++;
 	}
 	fprintf(output, "%c\n\tfcb 0\n", c);
