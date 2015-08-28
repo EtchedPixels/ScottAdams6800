@@ -1935,6 +1935,7 @@ continuation:
 
 	zmb 256			; overkill
 stacktop:
+	fcb 0
 
 ;
 ;	Between here and saveblock_end is saved
