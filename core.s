@@ -217,6 +217,11 @@ strout_upper:
 0stroutu_x:
 0	fdb 0
 
+
+hexoutpair_lower:
+	pshb
+	jsr hexout_lower
+	pula
 ;
 ;	Hexadecimal output to lower window (debug only)
 ;
@@ -623,11 +628,7 @@ not_goto_null:
 not_dark_goto:
 	ldx #locdata		; look up direction table
 	ldab location
-	lslb			; 8 bytes a location
-	lslb
-	lslb
-0	jsr abx
-1	abx			; points to location entry
+	jsr getloc_x
 	pulb
 0	jsr abx
 1	abx			; add direction (1-6)
@@ -1125,7 +1126,7 @@ get_arg16:
 	ldx argp
 0	ldaa ,x
 0	ldab 1,x
-1	ldd ,x
+1	ldd ,x		; FIXME: need to adjust high byte
 	inx
 	inx
 	stx argp
@@ -1434,23 +1435,23 @@ act80:
 act81:
 	jsr get_arg
 	tab
-	ldx #counter_array
+	ldx #counter_array		; find the counter pointer
 0	jsr abx
 0	jsr abx
 0	ldaa ,x
 0	ldab 1,x
 1	abx
 1	abx
-1	ldd ,x
-	psha
+1	ldd ,x				; load the value of the counter
+	psha				; save the counters
 	pshb
-	bsr load_counter
+	bsr load_counter		; load the current counter
 0	staa ,x
 0	stab 1,x
-1	std ,x
-	pulb
+1	std ,x				; save into the swapped counter
+	pulb				; recover the old value
 	pula
-	bra store_counter
+	bra store_counter		; store that in the current counter
 
 ;
 ;	Action 82: Add to current counter
@@ -1663,7 +1664,10 @@ next_action:
 	beq is_random
 	tst continuation	; Skip continuations we didn't match
 	beq next_line
+	bra doing_cont
 not_random:
+	clr continuation	; AUTO 100 ends continuations
+doing_cont:
 	inx			; Skip header byte and go
 	bra do_line
 is_random:
@@ -1856,6 +1860,42 @@ objmatch:
 1	pulx
 	rts
 
+getloc_x:			; Get location ptr into X - avoid shifts
+	ldab location
+	ldx #locdata		; as we might overflow
+0	bsr abx
+0	bsr abx
+0	bsr abx
+0	bsr abx
+0	bsr abx
+0	bsr abx
+0	bsr abx
+0	bsr abx
+1	abx
+1	abx
+1	abx
+1	abx
+1	abx
+1	abx
+1	abx
+1	abx
+	rts
+
+0abx:	stx tmp_abx
+0	psha
+0	pshb
+0	clra
+0	addb tmp_abx+1
+0	adca tmp_abx
+0	stab tmp_abx+1
+0	staa tmp_abx
+0	pulb
+0	pula
+0	ldx tmp_abx
+0	rts
+0tmp_abx:
+0	fdb 0
+
 ;
 ;	Look: Display the location details. This ends up in the upper
 ;	window, as the Scott Adams' system uses a two window output model.
@@ -1869,13 +1909,7 @@ look:
 	jmp end_upper		; and done
 
 cansee:
-	ldab location		; Find the right location data
-	lslb
-	lslb
-	lslb
-	ldx #locdata		; base + 8 * location (6 exits, 2 byte msgptr)
-0	jsr abx
-1	abx
+	bsr getloc_x		; Find the right location data
 0	stx action_x
 1	pshx			; Save our pointer
 	ldx ,x			; Get the message ptr
@@ -2131,6 +2165,8 @@ lighttime:
 	fcb 0
 location:
 	fcb 0
+
+	fcb 0,0,0,0,0
 objloc:
 	zmb NUM_OBJ
 objloc_end:
