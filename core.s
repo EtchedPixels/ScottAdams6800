@@ -15,7 +15,6 @@
 ;	Condition <= >= 16bit check
 ;	Ramsave/load
 ;	MCX graphics ??? 8)
-;	autonoun dependent on word length setting
 ;
 	org 17500
 
@@ -391,7 +390,7 @@ whichwordl:
 alias:
 	jsr wordeq
 	beq foundword
-	ldab wordsize
+	ldab #WORDSIZE
 1	abx
 0	jsr abx
 	tst ,x			; 0 - end of list
@@ -435,6 +434,47 @@ scan_noun:			; Extra entry point used for direction hacks
 
 0scanin_x:
 0	fdb	0
+
+
+;
+;	See if we have a relevant one word abbreviation
+;
+abbrevs:
+	ldx #linebuf
+	jsr skip_spaces
+	ldaa 1,x
+	beq abbrev_ok
+	cmpa #' '
+	beq abbrev_ok
+	rts
+abbrev_ok:
+	ldaa ,x
+	ldx #a_nort
+	cmpa #'N'
+	beq do_abbr
+	ldx #a_sout
+	cmpa #'S'
+	beq do_abbr
+	ldx #a_east
+	cmpa #'E'
+	beq do_abbr
+	ldx #a_west
+	cmpa #'W'
+	beq do_abbr
+	ldx #a_up
+	cmpa #'U'
+	beq do_abbr
+	ldx #a_down
+	cmpa #'D'
+	beq do_abbr
+	ldx #a_inve
+	cmpa #'I'
+	beq do_abbr
+	rts
+do_abbr:
+	jmp copy_abbrev
+;	ldx #linebuf
+;	jmp strout_lower
 
 ;
 ;	Main game logic runs from here
@@ -509,6 +549,7 @@ do_command_l:
 	jsr strout_lower
 	jsr wordflush		; avoid buffering problems
 	jsr line_input		; read a command
+	jsr abbrevs		; do any abbreviation fixups
 	ldx #linebuf
 	jsr skip_spaces
 	tst ,x			; empty ?
@@ -1790,7 +1831,7 @@ autonounl:
 	jsr wordeq
 	beq foundnoun
 nextnoun:
-	ldab #5			; 5 bytes per entry
+	ldab #WORDSIZE+1	; 5 bytes per entry
 0	jsr abx
 1	abx
 	tst ,x			; 0 - end of list
@@ -1801,7 +1842,7 @@ noauto:
 foundnoun:
 0	stx action_x
 1	pshx
-	ldab 4,x		; object id
+	ldab WORDSIZE,x		; object id
 	ldx #objloc
 0	jsr abx
 1	abx
@@ -2030,6 +2071,21 @@ actab:
 	fdb act88
 	fdb act89
 
+;
+;	Abbreviations: FIXME - might be nice to separate these for non
+; English games ?
+;
+a_nort: fcc "NORTH"
+a_sout: fcc "SOUTH"
+a_east: fcc "EAST"
+	fcb 0
+a_west: fcc "WEST"
+	fcb 0
+a_up:   fcc "UP"
+	fcb 0
+a_down: fcc "DOWN"
+	fcb 0
+a_inve: fcc "INVEN"
 ;
 ;	Engine temporaries
 ;

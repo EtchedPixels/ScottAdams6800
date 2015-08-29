@@ -66,3 +66,11 @@ padrestl:
 	cpx #wordbuf+3
 	bne padrestl
 	rts
+
+copy_abbrev:
+	ldd ,x
+	std linebuf
+	ldaa 2,x
+	clrb
+	std linebuf+2
+	rts

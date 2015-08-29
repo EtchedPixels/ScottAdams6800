@@ -80,3 +80,15 @@ padrestl:
 	cpx #wordbuf+4
 	bne padrestl
 	rts
+
+copy_abbrev:
+	ldaa ,x
+	staa linebuf
+	ldaa 1,x
+	staa linebuf+1
+	ldaa 2,x
+	staa linebuf+2
+	ldaa 3,x
+	staa linebuf+3
+	clr 4,x
+	rts
