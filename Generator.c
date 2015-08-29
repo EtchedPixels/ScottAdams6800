@@ -230,7 +230,7 @@ static void newlines(void) {
 }
 
 static void fcb(int v) {
-	if (v < 0 || v > 255)
+	if (v < -128 || v > 255)
 		Fatal("FCB out of range");
 	fprintf(output, "\tfcb %d\n", v);
 }
@@ -394,6 +394,7 @@ int main(int argc, char *argv[])
 	}
 
 	equ("NUM_OBJ", GameHeader.NumItems);
+	equ("WORDSIZE", GameHeader.WordLength);
 
 	/* Main game file */	
 	copyin("core.s");
@@ -412,7 +413,6 @@ int main(int argc, char *argv[])
 
 	copyin("bridge.s");
 
-	label_fcb("wordsize", GameHeader.WordLength);
 	label_fcb("startlamp", GameHeader.LightTime);
 	label_fcb("lightfill", GameHeader.LightTime);
 	label_fcb("startcarried", CountCarried());
