@@ -1137,11 +1137,10 @@ act76:
 ;	Action 62: Move an object to a given location
 ;	
 act62:
-	jsr get_arg
+	jsr get_arg		; X is objloc ptr, B is location
 	pshx
 	pshb
-	jsr get_arg
-	tba
+	jsr get_arg		; New location into A
 	pulb
 	pulx
 	bra move_item
