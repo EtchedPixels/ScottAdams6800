@@ -3,7 +3,6 @@
 ;
 ;	Random number generator
 ;	Justification engine (top and bottom)
-;	NESWUDI shortforms
 ;	Save and Load
 ;	Reset machine correctly
 ;	Rearrange to maximise use of branches via bsr/bra
