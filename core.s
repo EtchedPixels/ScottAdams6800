@@ -38,11 +38,17 @@ start:
 wipe_screen:
 	ldx #$4000
 wipeblock:
-	ldd #$2020
-wiper:
-	std ,x
-	inx
-	inx
+
+1	ldd #$2020
+1wiper:
+1	std ,x
+1	inx
+1	inx
+
+0	ldab #$20
+0wiper:
+0	stab ,x
+0	inx
 	cpx #$4200
 	bne wiper
 	rts
@@ -56,10 +62,16 @@ wipe_lower:
 scroll_lower:
 	ldx lowtop
 lowscrl:
-	ldd 32,x
-	std ,x
-	inx
-	inx
+
+1	ldd 32,x
+1	std ,x
+1	inx
+1	inx
+
+0	ldaa 32,x
+0	staa ,x
+0	inx
+
 	cpx #$4200-32		; last line for scroll work
 	bne lowscrl
 	ldaa #$20
@@ -77,10 +89,12 @@ lowclr:
 ;
 start_upper:
 	ldx #$4000
-	ldd #$2020
+1	ldd #$2020
+0	ldaa #$20
 wipeoldupper:
-	std ,x
-	inx
+0	staa ,x
+1	std ,x
+1	inx
 	inx
 	cpx lowtop
 	bne wipeoldupper
@@ -93,12 +107,22 @@ wipeoldupper:
 ;	the low section
 ;
 end_upper:
-	ldd nextupper
-	addd #$1F
+0	ldaa nextupper
+0	ldab nextupper+1
+0	addb #$1f
+0	adca #0
+
+1	ldd nextupper
+1	addd #$1F
+
 	andb #$E0
-	std lowtop
+0	staa lowtop
+0	stab lowtop+1
+1	std lowtop
 	ldx lowtop
-	ldd #$7C20	; 7C is < for 32 bytes
+0	ldaa #$7C
+0	ldab #$20
+1	ldd #$7C20	; 7C is < for 32 bytes
 divider:
 	staa ,x
 	inx
@@ -165,13 +189,18 @@ strout_lower:
 	ldaa ,x
 	beq strout_done
 	anda #63
-	pshx
+0	stx stroutl_x
+1	pshx
 	bsr chout_lower
-	pulx
+0	ldx stroutl_x
+1	pulx
 	inx
 	bra strout_lower
 strout_done:
 	rts
+
+0stroutl_x:
+0	fdb 0
 
 ;
 ;	Print a string of text to the upper window
@@ -179,11 +208,16 @@ strout_done:
 strout_upper:
 	ldaa ,x
 	beq strout_done
-	pshx
+0	stx stroutu_x
+1	pshx
 	bsr chout_upper
-	pulx
+0	ldx stroutu_x
+1	pulx
 	inx
 	bra strout_upper
+
+0stroutu_x:
+0	fdb 0
 
 ;
 ;	Hexadecimal output to lower window (debug only)
@@ -358,7 +392,8 @@ alias:
 	jsr wordeq
 	beq foundword
 	ldab wordsize
-	abx
+1	abx
+0	jsr abx
 	tst ,x			; 0 - end of list
 	bne whichwordl
 	ldab #$ff		; Word present but not in vocabulary
@@ -386,15 +421,20 @@ skipl:
 scan_input:
 	ldx #linebuf
 	jsr copy_word		; Verb hopefully
-	pshx
+0	stx scanin_x
+1	pshx
 	jsr whichverb
 	stab verb
-	pulx
+0	ldx scanin_x
+1	pulx
 scan_noun:			; Extra entry point used for direction hacks
 	jsr copy_word
 	jsr whichnoun
 	stab noun
 	rts
+
+0scanin_x:
+0	fdb	0
 
 ;
 ;	Main game logic runs from here
@@ -473,7 +513,8 @@ do_command_l:
 	jsr skip_spaces
 	tst ,x			; empty ?
 	beq do_command_l	; round we go
-	pshx
+0	stx docoml_x
+1	pshx
 	jsr scan_noun		; take the first input word and see
 	ldaa noun		; if its a direction
 	beq notdirn
@@ -481,13 +522,18 @@ do_command_l:
 	bhi notdirn
 	ldaa #VERB_GO
 	staa verb		; convert this into "go foo"
-	pulx
+0	ldx docoml_x
+1	pulx
 	bra parsed_ok
+
+0docoml_x:
+0	fdb	0
 ;
 ;	Try a normal verb / noun parse
 ;
 notdirn:
-	pulx
+0	ldx docoml_x
+1	pulx
 	jsr scan_input
 ;	pshx
 ;	ldaa #'V'
@@ -540,9 +586,11 @@ not_dark_goto:
 	lslb			; 8 bytes a location
 	lslb
 	lslb
-	abx			; points to location entry
+0	jsr abx
+1	abx			; points to location entry
 	pulb
-	abx			; add direction (1-6)
+0	jsr abx
+1	abx			; add direction (1-6)
 	inx			; allow for the fact 2 bytes of text ptr
 	tst ,x			; valid ?
 	bne can_do_goto
@@ -611,26 +659,48 @@ getotext_x:
 	ldab tmp16+1	; Only the low offset matters
 	subb #objloc % 256
 	ldx #objtext	; Two byte pointer per object
-	abx
-	abx
+0	jsr abx
+0	jsr abx
+1	abx
+1	abx
 	ldx ,x		; Dereference
 	pulb
 	pula
 	rts
 
+set_argp:
+0	ldaa #args/256
+0	ldab #args%256
+0	staa argp
+0	stab argp+1
+
+1	ldd #args
+1	std argp
+
+	rts
 ;
 ;	Game Conditions
 ;
 perform_line:
 ;	jsr debug
-	ldd #args
-	std argp
-	ldd #0
-	std args
-	std args+2
-	std args+4
-	std args+6
-	std args+8
+	bsr set_argp
+	clra
+	clrb
+1	std args
+1	std args+2
+1	std args+4
+1	std args+6
+1	std args+8
+0	clr args
+0	clr args+1
+0	clr args+2
+0	clr args+3
+0	clr args+4
+0	clr args+5
+0	clr args+6
+0	clr args+7
+0	clr args+8
+0	clr args+9
 	ldab condacts
 	rorb
 	rorb
@@ -638,11 +708,13 @@ perform_line:
 	beq noconds
 condl:
 ;	jsr debug2
-	pshx
+0	stx condl_x
+1	pshx
 	pshb
 	bsr cond		; run the condition
 	pulb
-	pulx
+0	ldx condl_x
+1	pulx
 	tsta			; did it fail
 	bne nextrow		; if so we the line is done
 	inx			; move on a condition
@@ -654,8 +726,7 @@ condl:
 ;
 noconds:
 	inc actmatch
-	ldd #args		; reset the arg pointer
-	std argp
+	bsr set_argp		; reset the arg pointer
 	ldab condacts		; see how many actions
 	andb #3
 	incb			; 1-4 not 0-3
@@ -663,15 +734,20 @@ nextact:
 ;	jsr debug3
 	ldaa ,x			; get the action code
 	inx			; move on
-	pshx
+0	stx condl_x
+1	pshx
 	pshb
 	jsr act			; run the action
 	pulb
-	pulx
+0	ldx condl_x
+1	pulx
 	decb
 	bne nextact		; until done
 nextrow:
 	rts
+
+0condl_x:
+0	fdb	0
 
 ;
 ;	?? Does this need to sign extend ??
@@ -689,7 +765,9 @@ arghigh:
 ;	registers. It's probably a mistake and we should use a table
 ;
 cond:
-	ldd ,x			; A = cond, B = value
+0	ldaa ,x
+0	ldab 1,x
+1	ldd ,x			; A = cond, B = value
 	staa argh		; High arg bits saved
 	anda #$1F		; Low bits only
 	tsta
@@ -717,7 +795,8 @@ cond1:
 ;	set x up as a pointer to the argument
 ;
 	ldx #objloc
-	abx
+0	jsr abx
+1	abx
 	deca
 ;
 ;	Condition 1: true if the objct is carried
@@ -799,7 +878,8 @@ cond8:
 ;	Condition 8: True if bitflag n is set
 ;
 	ldx #bitflags
-	abx
+0	jsr abx
+1	abx
 	tst ,x
 	bra cbraf
 cond9:
@@ -809,7 +889,8 @@ cond9:
 ;	Condition 9: True if bitflag n is clear
 ;
 	ldx #bitflags
-	abx
+0	jsr abx
+1	abx
 	tst ,x
 	bra cbrat
 cond10:
@@ -886,7 +967,8 @@ cond17:
 ;
 	ldaa ,x
 	ldx #objinit
-	abx
+0	jsr abx
+1	abx
 	cmpa ,x
 	bra cbrat_f
 cond18:
@@ -897,7 +979,8 @@ cond18:
 ;
 	ldaa ,x
 	ldx #objinit
-	abx
+0	jsr abx
+1	abx
 	cmpa ,x
 	jmp cbraf
 cond19:
@@ -938,8 +1021,10 @@ msg2:
 msg:
 	tab
 	ldx #msgptr
-	abx
-	abx
+0	jsr abx
+0	jsr abx
+1	abx
+1	abx
 	ldx ,x
 	jmp strout_lower
 
@@ -968,8 +1053,10 @@ act:
 ;
 	tab
 	ldx #actab-104  ; First action is 52, 2 bytes each
-	abx
-	abx		; Find our entry
+0	jsr abx
+0	jsr abx
+1	abx
+1	abx		; Find our entry
 	ldx ,x
 	jmp ,x		; Off we go
 
@@ -985,7 +1072,8 @@ get_arg:
 	inx
 	stx argp
 	ldx #objloc
-	abx
+0	jsr abx
+1	abx
 	tba		; Argument to A
 	ldab ,x		; Location to B
 	rts
@@ -995,7 +1083,9 @@ get_arg:
 ;
 get_arg16:
 	ldx argp
-	ldd ,x
+0	ldaa ,x
+0	ldab 1,x
+1	ldd ,x
 	inx
 	inx
 	stx argp
@@ -1024,7 +1114,8 @@ carok:
 ;
 move_item_b:
 	ldx #objloc
-	abx
+0	jsr abx
+1	abx
 	ldab ,x
 	
 ;	X = object ptr, B = current loc, A = new loc
@@ -1077,7 +1168,7 @@ act55:
 act59:
 	bsr get_arg
 	clra
-	bra move_item
+	jmp move_item
 ;
 ;	Action 56: Set the dark flag
 ;
@@ -1098,7 +1189,8 @@ act58:
 	jsr get_arg
 	tab
 	ldx #bitflags
-	abx
+0	jsr abx
+1	abx
 	ldaa #255
 	staa ,x
 	rts
@@ -1110,8 +1202,9 @@ act60:
 	jsr get_arg
 	tab
 	ldx #bitflags
-	abx
-	clra
+0	jsr abx
+1	abx
+	clr ,x
 	rts
 
 ;
@@ -1133,17 +1226,22 @@ act76:
 	; look
 	jmp look
 
+0action_x:
+0	fdb 0
 ;
 ;	Action 62: Move an object to a given location
 ;	
 act62:
 	jsr get_arg		; X is objloc ptr, B is location
-	pshx
+0	stx action_x
+1	pshx
 	pshb
 	jsr get_arg		; New location into A
 	pulb
-	pulx
-	bra move_item
+0	ldx action_x
+1	pulx
+	jmp move_item
+
 ;
 ;	Action 63: Game Over
 ;
@@ -1199,13 +1297,15 @@ act70:
 ;
 act72:
 	jsr get_arg
-	pshx		; Save objloc ptr for object 1
+0	stx action_x
+1	pshx		; Save objloc ptr for object 1
 	pshb		; Save current location for object 1
 	jsr get_arg	; Get object 2
 	tba		; A is now the location of object 2
 	pulb		; Recover location of object 1
 	stab ,x		; Second object to first
-	pulx		; Pointer to object 1
+0	ldx action_x
+1	pulx		; Pointer to object 1
 	staa ,x		; Swapped over
 	cmpa location
 	beq placerd
@@ -1234,22 +1334,33 @@ act74:
 ;
 act75:
 	jsr get_arg
-	pshx
+0	stx action_x
+1	pshx
 	pshb
 	jsr get_arg
 	tba		; loc of second object is our target
 	pulb
-	pulx
+0	ldx action_x
+1	pulx
 	jmp move_item
+
+load_counter:
+0	ldaa counter
+0	ldab counter+1
+1	ldd counter
+	rts
+	
 ;
 ;	Action 77: Decrement counter
 ;
 act77:
-	ldd counter
-	; FIXME - check this sets zero right
+	bsr load_counter
+	; FIXME - set zero right for 6800
 	beq nodec
-	subd #1
-	std counter
+0	subb #1
+0	sbca #0
+1	subd #1
+	bra store_counter
 nodec:
 	rts
 
@@ -1257,7 +1368,7 @@ nodec:
 ;	Action 78: Print counter value
 ;
 act78:
-	ldd counter
+	bsr load_counter
 	tba
 	jmp decout_lower
 
@@ -1266,8 +1377,7 @@ act78:
 ;
 act79:
 	jsr get_arg16
-	std counter
-	rts
+	bra store_counter
 ;
 ;	Action 80: Swap player location with saved room (YOHO etc)
 ;
@@ -1285,25 +1395,35 @@ act81:
 	jsr get_arg
 	tab
 	ldx #counter_array
-	abx
-	abx
-	ldd ,x
+0	jsr abx
+0	jsr abx
+0	ldaa ,x
+0	ldab 1,x
+1	abx
+1	abx
+1	ldd ,x
 	psha
 	pshb
-	ldd counter
-	std ,x
+	bsr load_counter
+0	staa ,x
+0	stab 1,x
+1	std ,x
 	pulb
 	pula
-	std counter
-	rts
+	bra store_counter
 
 ;
 ;	Action 82: Add to current counter
 ;
 act82:
 	jsr get_arg16
-	addd counter
-	std counter
+0	addb counter+1
+0	adca counter
+1	addd counter
+store_counter:
+0	staa counter
+0	stab counter+1
+1	std counter
 	rts
 
 ;
@@ -1312,14 +1432,18 @@ act82:
 ;
 act83:
 	jsr get_arg16
-	std tmp16
-	ldd counter
-	subd tmp16
+0	staa tmp16
+0	stab tmp16+1
+1	std tmp16
+	bsr load_counter
+0	subb tmp16+1
+0	sbca tmp16
+1	subd tmp16
 	bcc notneg
-	ldd #-1
+	ldaa #$ff		; ldd -1
+	tab
 notneg:
-	std counter
-	rts
+	bra store_counter
 
 ;
 ;	Action 84: Print the noun string and a newline 
@@ -1348,7 +1472,8 @@ act87:
 	jsr get_arg
 	tab
 	ldx #roomsave
-	abx
+0	jsr abx
+1	abx
 	ldaa ,x
 	ldab location
 	stab ,x
@@ -1364,7 +1489,8 @@ noop2:
 ;
 act88:
 	; FIXME - 2 second wait
-	ldd #0
+	clra
+	clrb
 snooze:
 	addb #1
 	adca #0
@@ -1400,14 +1526,16 @@ score2:
 	ldab treasure
 	cmpb ,x
 	bne notintreas
-	pshx
+0	stx action_x
+1	pshx
 	jsr getotext_x		; Object texts start * for treasure
 	ldab #'*'
 	cmpb ,x
-	pulx
 	bne notintreas
 	inca
 notintreas:
+0	ldx action_x
+1	pulx
 	inx
 	cpx objloc_end
 	bne score2
@@ -1438,15 +1566,19 @@ objl:
 	bne notgot
 	tst tmp8		; first item found ?
 	beq inv_1
-	pshx
+0	stx action_x
+1	pshx
 	ldx #dashstr
 	jsr strout_lower
-	pulx
+0	ldx action_x
+1	pulx
 inv_1:	inc tmp8
-	pshx
+0	stx action_x
+1	pshx
 	jsr getotext_x
 	jsr strout_lower
-	pulx
+0	ldx action_x
+1	pulx
 notgot:
 	inx
 	cpx #objloc_end
@@ -1508,10 +1640,13 @@ not_cont:
 	inx			; Skip header byte
 	tst actmatch
 	bne action_done		; hit a new block - done
-	ldd ,x			; FIXME: allow R bit on verb/noun pairs
+0	ldaa ,x
+0	ldab 1,x
+1	ldd ,x			; FIXME: allow R bit on verb/noun pairs
 	inx			; Skip verb / noun pair
 	inx
-	pshx
+0	stx action_x
+1	pshx
 	psha
 	pshb
 ;	jsr hexout_lower
@@ -1521,7 +1656,8 @@ not_cont:
 ;	jsr read_key
 	pulb
 	pula
-	pulx
+0	ldx action_x
+1	pulx
 	cmpa verb
 	bne next_line
 	cmpb noun
@@ -1553,9 +1689,11 @@ squashed1:
 	inca			; 1-4 not 0-3
 	lsrb			; 2 x conditions
 	andb #$0E		; 2 * conds
-	abx			; Move over conditions
+0	jsr abx
+1	abx			; Move over conditions
 	tab
-	abx			; Move over actions
+0	jsr abx
+1	abx			; Move over actions
 	ldaa ,x			; round we go
 	cmpa #255		; 255 is end of table
 	beq action_done
@@ -1653,24 +1791,29 @@ autonounl:
 	beq foundnoun
 nextnoun:
 	ldab #5			; 5 bytes per entry
-	abx
+0	jsr abx
+1	abx
 	tst ,x			; 0 - end of list
 	bne autonounl
 noauto:
 	ldab #$ff		; Word present but not in vocabulary
 	rts
 foundnoun:
-	pshx
+0	stx action_x
+1	pshx
 	ldab 4,x		; object id
 	ldx #objloc
-	abx
+0	jsr abx
+1	abx
 	ldaa ,x			; location
 	cmpa tmp8
 	beq objmatch
-	pulx
+0	ldx action_x
+1	pulx
 	bra nextnoun
 objmatch:
-	pulx
+0	ldx action_x
+1	pulx
 	rts
 
 ;
@@ -1691,16 +1834,20 @@ cansee:
 	lslb
 	lslb
 	ldx #locdata		; base + 8 * location (6 exits, 2 byte msgptr)
-	abx
-	pshx			; Save our pointer
+0	jsr abx
+1	abx
+0	stx action_x
+1	pshx			; Save our pointer
 	ldx ,x			; Get the message ptr
 	ldaa #'*'		; Is it *
 	cmpa ,x
 	beq notshort		; Nope.. just print it
-	pshx			; Save it
+0	stx look_x
+1	pshx			; Save it
 	ldx #youare		; Standard game prefix ("You are", "I am")
 	jsr strout_upper
-	pulx
+0	ldx look_x
+1	pulx
 	dex
 notshort:
 	inx			; Skip *
@@ -1708,14 +1855,16 @@ notshort:
 	clr tmp8		; No exit seen yet
 	ldx #obexit		; Exits string
 	jsr strout_upper
-	pulx			; Recover the location ptr
+0	ldx action_x
+1	pulx			; Recover the location ptr
 	inx			; Move on to exits
 	inx
 	clrb			; Count exits
 exitl:
 	tst ,x			; 0 = none
 	beq notanexit
-	pshx			; Save our pointer
+0	stx action_x
+1	pshx			; Save our pointer
 	tst tmp8		; First exit ?
 	beq firstexit
 	ldx #dashstr		; Print - or , 
@@ -1723,11 +1872,14 @@ exitl:
 firstexit:
 	inc tmp8		; No longer first exit
 	ldx #exitmsgptr		; Exit messages
-	abx			; Find the right one
-	abx
+0	jsr abx
+0	jsr abx
+1	abx			; Find the right one
+1	abx
 	ldx ,x
 	jsr strout_upper	; Print it
-	pulx			; Get our exits pointer back
+0	ldx action_x
+1	pulx			; Get our exits pointer back
 notanexit:
 	inx			; Move on
 	incb			; Done ?
@@ -1746,7 +1898,8 @@ wasstuff:
 lookiteml:
 	cmpb ,x			; Object here ?
 	bne objnothere
-	pshx			; Print either - or also see message
+0	stx action_x
+1	pshx			; Print either - or also see message
 	ldx #dashstr
 	tst tmp8
 	bne notfirsti
@@ -1754,11 +1907,13 @@ lookiteml:
 notfirsti:
 	inc tmp8		; Object seen
 	jsr strout_upper
-	pulx			; Recover our object pointer
-	pshx
+0	ldx action_x
+1	pulx			; Recover our object pointer
+1	pshx
 	jsr getotext_x		; Print the object name
 	jsr strout_upper
-	pulx
+0	ldx action_x
+1	pulx
 objnothere:
 	inx
 	cpx #objloc_end		; Done ?
@@ -1769,6 +1924,9 @@ objnothere:
 	jsr strout_upper
 nothingtosee:
 	jmp end_upper		; Draw the barrier line and donee
+
+0look_x:
+0	fdb 0
 
 start_game:
 	sei
@@ -1946,10 +2104,12 @@ saveblock_end:
 debug:
 	psha
 	pshb
-	pshx
+0	stx debug_x
+1	pshx
 	ldaa #'*'
 	jsr chout_lower
-	pulx
+0	ldx debug_x
+1	pulx
 	pulb
 	pula
 	rts
@@ -1957,10 +2117,12 @@ debug:
 debug2:
 	psha
 	pshb
-	pshx
+0	stx debug_x
+1	pshx
 	ldaa #'L'
 	jsr chout_lower
-	pulx
+0	ldx debug_x
+1	pulx
 	pulb
 	pula
 	rts
@@ -1968,11 +2130,30 @@ debug2:
 debug3:
 	psha
 	pshb
-	pshx
+0	stx debug_x
+1	pshx
 	ldaa #'D'
 	jsr chout_lower
-	pulx
+0	ldx debug_x
+1	pulx
 	pulb
 	pula
 	rts
 
+0debug_x:
+0	fdb 0
+
+0abx:	stx tmp_abx
+0	psha
+0	pshb
+0	clra
+0	addb tmp_abx+1
+0	adca tmp_abx
+0	stab tmp_abx+1
+0	staa tmp_abx
+0	pulb
+0	pula
+0	ldx tmp_abx
+0	rts
+0tmp_abx:
+0	fdb 0
