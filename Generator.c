@@ -311,8 +311,18 @@ static void copyin(const char *p) {
 		perror(p);
 		exit(1);
 	}
-	while(fgets(buf, 512, i))
-		fputs(buf, output);
+	while(fgets(buf, 512, i)) {
+		if (*buf == '0') {
+			if (Options & MC6800)
+				fputs(buf + 1, output);
+		}
+		else if (*buf == '1') {
+			if (!(Options & MC6800))
+				fputs(buf + 1, output);
+		}
+		else
+			fputs(buf, output);
+	}
 	fclose(i);
 }
 
@@ -321,6 +331,7 @@ int main(int argc, char *argv[])
 	FILE *f;
 	int i;
 	int acts;
+	char wname[32];
 	
 	while(argv[1])
 	{
@@ -343,9 +354,12 @@ int main(int argc, char *argv[])
 			case 'p':
 				Options|=PREHISTORIC_LAMP;
 				break;
+			case '0':
+				Options|=MC6800;
+				break;
 			case 'h':
 			default:
-				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] <gamename> <asmname>.\n",
+				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-0] <gamename> <asmname>.\n",
 						argv[0]);
 				exit(1);
 		}
@@ -385,14 +399,10 @@ int main(int argc, char *argv[])
 	copyin("core.s");
 	
 	/* Word handler */
-	if (GameHeader.WordLength == 3)
-		copyin("word3.s");
-	else if (GameHeader.WordLength == 4)
-		copyin("word4.s");
-	else if (GameHeader.WordLength == 5)
-		copyin("word5.s");
-	else
-		Fatal("Unsupported word length");
+	sprintf(wname, "word%d%s.s",
+		GameHeader.WordLength,
+		(Options&MC6800)?"-0":"");
+	copyin(wname);
 
 	/* Correct text messages */
 	if (Options&YOUARE)

@@ -50,5 +50,5 @@ typedef struct
 #define SCOTTLIGHT	2	/* Authentic Scott Adams light messages */
 #define DEBUGGING	4
 #define PREHISTORIC_LAMP 8	/* Destroy the lamp (very old databases) */
-
+#define MC6800		16	/* Avoid LDD, STD, PSHX, PULX, ABX */
 
