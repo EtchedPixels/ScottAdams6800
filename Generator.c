@@ -230,8 +230,10 @@ static void newlines(void) {
 }
 
 static void fcb(int v) {
-	if (v < -128 || v > 255)
+	if (v < -128 || v > 255) {
+		fprintf(stderr, "%d: ", v);
 		Fatal("FCB out of range");
+	}
 	fprintf(output, "\tfcb %d\n", v);
 }
 
@@ -413,6 +415,10 @@ int main(int argc, char *argv[])
 
 	copyin("bridge.s");
 
+	if (GameHeader.LightTime > 255) {
+		fprintf(stderr, "Warning: 16bit light time ?\n");
+		GameHeader.LightTime = 255;
+	}
 	label_fcb("startlamp", GameHeader.LightTime);
 	label_fcb("lightfill", GameHeader.LightTime);
 	label_fcb("startcarried", CountCarried());
@@ -501,7 +507,7 @@ int main(int argc, char *argv[])
 		acode[2] = Actions[i].Action[1] / 150;
 		acode[3] = Actions[i].Action[1] % 150;
 
-		ac = 1;
+		ac = 0;
 		for (a = 3; a >= 0; a--) {
 			if (acode[a]) {
 				ac = a + 1;
@@ -510,27 +516,31 @@ int main(int argc, char *argv[])
 		}
 		hdr |= cc << 2;
 		hdr |= ac - 1;
-		fcb_first();
-		fcb_cont(hdr);
-		if (v) {
-			fcb_cont(v);
-			fcb_cont(n);
-		} else {
-			if (n && n != 100)
+
+		/* Drop out any dummy lines */
+		if (ac || cc) {
+			fcb_first();
+			fcb_cont(hdr);
+			if (v) {
+				fcb_cont(v);
 				fcb_cont(n);
+			} else {
+				if (n && n != 100)
+					fcb_cont(n);
+			}
+			fcb_last();
+			for (a = 0; a < cc; a++) {
+				uint16_t t = Actions[i].Condition[a];
+				uint8_t code = t % 20;
+				t /= 20;
+				fcb_cont(code | ((t >> 3) & 0xE0));
+				fcb_cont(t & 0xFF);
+			}
+			fcb_last();
+			for (a = 0; a < ac; a++)
+				fcb_cont(acode[a]);
+			fcb_last();
 		}
-		fcb_last();
-		for (a = 0; a < cc; a++) {
-			uint16_t t = Actions[i].Condition[a];
-			uint8_t code = t % 20;
-			t /= 20;
-			fcb_cont(code | ((t >> 3) & 0xE0));
-			fcb_cont(t & 0xFF);
-		}
-		fcb_last();
-		for (a = 0; a < ac; a++)
-			fcb_cont(acode[a]);
-		fcb_last();
 	}
 	fcb(255);
 	newlines();
