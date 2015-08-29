@@ -1628,16 +1628,15 @@ not_get:
 	ldaa location
 	bra domove
 
+all_done:
+	inc actmatch		; auto logic "did" the action
 not_drop:
-	bra all_done
+	rts
 
 ummwhat:
 	ldx #whatstr
 	jsr strout_lower
 
-all_done:
-	inc actmatch		; auto logic "did" the action
-	rts
 ;
 ;	On entry B holds the location to scan. We check for
 ;	any auto entry that matches our word and is in the
