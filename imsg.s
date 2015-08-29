@@ -49,7 +49,7 @@ dontknow:
 	fcc "YOU USE WORD(S) I DON'T KNOW! "
 	fcb 0
 givedirn:
-	fcc "GIVE ME A DIRECTION TOO ."
+	fcc "GIVE ME A DIRECTION TOO. "
 	fcb 0
 darkdanger:
 	fcc "DANGEROUS TO MOVE IN THE DARK! "
