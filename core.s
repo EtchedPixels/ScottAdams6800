@@ -159,9 +159,17 @@ upper_spc:			; Clear the rest of the line
 ;	Print to the lower screen area
 ;
 chout_lower:
-	cmpa #10
-	beq lower_nl
-	anda #63
+	cmpa #' '
+	bne notspace
+	bsr word_flush_l	; Flush the word if any
+	ldab nextchar+1		; Left hand row ?
+	andb #$1f
+	beq no_output_l		; No trailing spaces printed
+	ldaa #' '
+;
+;	Print a lower screen character directly
+;
+chout_lower_raw:
 	ldx nextchar
 	cpx #$4200
 	bne not_scroll
@@ -174,12 +182,59 @@ not_scroll:
 	inx
 lower_st_out:
 	stx nextchar
+no_output_l:
+	rts
+;
+;	Normal symbols and newlines
+;
+notspace:
+	cmpa #10
+	beq lower_nl
+	anda #63
+	ldx justify_l		; Add it to the justifier buffer
+	staa ,x
+	inx
+	stx justify_l
+noscroll_l:
 	rts
 lower_nl:
+	jsr word_flush_l
+	ldaa nextchar+1		; Did we just wrap anyway ?
+	anda #$1f
+	beq noscroll_l
+lower_nl_raw:
 	jsr scroll_lower
 	ldx #$4200-32
 	bra lower_st_out
 
+word_flush_l:
+; FIXME 6800
+	ldd justify_l
+	subd #justbuf_l		; space required is now in b
+	ldaa nextchar+1
+	anda #$1f		; column
+	aba
+	cmpa #$1f		; wrapping ?
+	blt no_wrap_l		; it fits
+	jsr lower_nl_raw
+no_wrap_l:
+	ldx #justbuf_l
+wordfl_l_lp:
+	cpx justify_l
+	beq wordflush_l_done
+	ldaa ,xp
+0	stx just_x+1
+1	pshx
+	bsr chout_lower_raw
+0just_x:
+0	ldx #0
+1	pulx
+	inx
+	bra wordfl_l_lp
+wordflush_l_done:
+	ldx #justbuf_l
+	stx justify_l
+	rts
 ;
 ;	Print a string of text to the lower window
 ;
@@ -189,7 +244,7 @@ strout_lower:
 	anda #63
 0	stx stroutl_x
 1	pshx
-	bsr chout_lower
+	jsr chout_lower
 0	ldx stroutl_x
 1	pulx
 	inx
@@ -208,7 +263,7 @@ strout_lower_spc:
 0	stx stroutl_x
 1	pshx
 	ldaa #$20
-	bsr chout_lower
+	jsr chout_lower
 0	ldx stroutl_x
 1	pulx
 	rts
@@ -220,7 +275,7 @@ strout_upper:
 	beq strout_done
 0	stx stroutu_x
 1	pshx
-	bsr chout_upper
+	jsr chout_upper
 0	ldx stroutu_x
 1	pulx
 	inx
@@ -252,7 +307,7 @@ hexdigit:
 	adda #$07
 hexout_digit:
 	adda #'0'
-	bra chout_lower
+	jmp chout_lower
 
 ;
 ;	Decimal output to lower window (0-99 is sufficient)
@@ -303,6 +358,7 @@ key_cr:
 ;	Yes or No. Returns B = 0 for Yes, 0xFF for no
 ;
 yes_or_no:
+	jsr word_flush_l
 	clrb
 	bsr read_key
 	cmpa #'y'
@@ -538,14 +594,14 @@ do_command:
 ;
 ;	Implement the builtin logic for the lightsource in these games
 ;
-	ldab objloc + LIGHT_SOURCE
+	ldab objloc+LIGHT_SOURCE
 	beq do_command_1
 	ldaa lighttime
 	cmpa #255			; does  not expire
 	beq do_command_1
 	deca
 	bne light_ok
-	clr bitflags + LIGHTOUT		; light goes out
+	clr bitflags+LIGHTOUT		; light goes out
 	cmpb #255
 	beq seelight
 	cmpb location
@@ -555,7 +611,7 @@ seelight:
 	jsr strout_lower
 unseenl:
 ; Earliest engine only
-;	clr objloc + LIGHT_SOURCE
+;	clr objloc+LIGHT_SOURCE
 	inc redraw
 	bra do_command_1
 light_ok:
@@ -726,9 +782,9 @@ do_command_far:
 ;	Check if we are in the light (Z) or not (NZ)
 ;
 islight:
-	tst bitflags + DARKFLAG		; if it isn't dark then it's light
+	tst bitflags+DARKFLAG		; if it isn't dark then it's light
 	beq lighted
-	ldaa objloc + LIGHTSOURCE	; get the lamp
+	ldaa objloc+LIGHT_SOURCE	; get the lamp
 	cmpa #255			; carried ?
 	beq lighted
 	cmpa location			; in the room ?
@@ -1031,7 +1087,7 @@ cond15:
 ;	Condition 15: Current counter is <= arg
 ;	FIXME: should be a 16bit compare!
 ;
-	cmpb counter + 1
+	cmpb counter+1
 	bgt condnp_f
 condfp_f:
 	jmp condfp
@@ -1262,13 +1318,13 @@ act59:
 ;
 act56:
 	ldaa #255
-	staa bitflags + DARKFLAG
+	staa bitflags+DARKFLAG
 	rts
 ;
 ;	Action 57: Clear the dark flag
 ;
 act57:
-	clr bitflags + DARKFLAG
+	clr bitflags+DARKFLAG
 	rts
 ;
 ;	Action 58: Set bit flag
@@ -1301,7 +1357,7 @@ act60:
 act61:
 	ldx #dead
 	jsr strout_lower
-	clr bitflags + DARKFLAG
+	clr bitflags+DARKFLAG
 	ldaa lastloc
 	staa location
 	; fall through
@@ -1334,8 +1390,7 @@ act62:
 ;	Action 63: Game Over
 ;
 act63:
-	; throw an exception out of the interpreter (should ask first or
-	; exit FIXME)
+	; throw an exception out of the interpreter
 	ldx #playagain
 	jsr strout_lower
 	jsr yes_or_no
@@ -1367,8 +1422,8 @@ act68:
 act69:
 	ldaa lightfill
 	staa lighttime
-	clr bitflags + LIGHTOUT
-	ldx #objloc + LIGHT_SOURCE
+	clr bitflags+LIGHTOUT
+	ldx #objloc+LIGHT_SOURCE
 	ldab ,x
 	ldaa #255
 	jmp move_item
@@ -2079,6 +2134,8 @@ clearl:
 	staa carried
 	ldx #$4200
 	stx nextchar
+	ldx #justbuf_l
+	stx justify_l
 	lds #stacktop
 	cli
 	jsr wipe_screen
@@ -2197,7 +2254,10 @@ argp:
 	fdb 0
 args:
 	zmb 10			; max 5 parameters
-
+justbuf_l:
+	zmb 32
+justify_l:
+	fdb 0
 
 	zmb 256			; overkill
 stacktop:
