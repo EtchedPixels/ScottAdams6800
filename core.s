@@ -271,7 +271,7 @@ read_key:
 ;
 ;	0D - newline, 08 - delete
 ; 
-	rts
+	jmp randseed		; add to the randomness
 
 ;
 ;	Wait for newline
@@ -353,7 +353,37 @@ enter_key:
 	ldaa #10
 	jmp chout_lower		; Move on a line and return
 
-	
+
+;
+;	Machine specific but for 6801 we can do this
+;
+random:
+	tab
+	aba		;	a = 2 x chance
+	lsrb		;	b = 0.5 x chance
+	aba		;	gives us 2.5 x the 1 in 100 chance
+			;	versus 0-255
+	ldab randpool	;	pool scrambling
+	eorb $10	;	stir in timer
+	rolb
+	adcb #0		;	rollover
+	stab randpool	;	stirred
+	clrb		;	B = 0 or 1
+1	cmpa randpool	;	use the timer pool
+	sbcb #0		;	0x00 or 0xFF for no/yes
+	rts
+randpool:
+	fcb	0
+
+randseed:
+	pshb
+	ldab randpool
+	lslb
+	adcb $10
+	stab randpool
+	pulb
+	rts
+
 ;
 ;	Parser
 ;
@@ -1659,7 +1689,6 @@ next_action:
 	beq not_cont
 	bita #$20		; AUTO 100
 	bne not_random
-	; FIXME random %age
 	bita #$40		; AUTO 0
 	beq is_random
 	tst continuation	; Skip continuations we didn't match
@@ -1671,7 +1700,10 @@ doing_cont:
 	inx			; Skip header byte and go
 	bra do_line
 is_random:
-	; FIXME
+	ldaa 1,x
+	jsr random
+	tstb
+	beq next_line
 	inx			; Skip header byte and random number
 	inx
 	bra do_line
