@@ -201,6 +201,18 @@ strout_done:
 0	fdb 0
 
 ;
+;	Print a sring of text to the lower window followed by a space
+;
+strout_lower_spc:
+	bsr strout_lower
+0	stx stroutl_x
+1	pshx
+	ldaa #$20
+	bsr chout_lower
+0	ldx stroutl_x
+1	pulx
+	rts
+;
 ;	Print a string of text to the upper window
 ;
 strout_upper:
@@ -1102,7 +1114,7 @@ msg:
 1	abx
 1	abx
 	ldx ,x
-	jmp strout_lower
+	jmp strout_lower_spc
 
 ;
 ;	Action 0 (shouldn't appear)
@@ -1613,7 +1625,7 @@ notintreas:
 0	ldx action_x
 1	pulx
 	inx
-	cpx objloc_end
+	cpx #objloc_end
 	bne score2
 	; A is now the count to print
 	psha
