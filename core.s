@@ -271,6 +271,10 @@ read_key:
 ;
 ;	0D - newline, 08 - delete
 ; 
+	cmpa #0x0D
+	beq key_cr		; we don't want to stir in the newline
+				; as it and the random query will be a fixed
+				; number of clocks apart in many cases
 	jmp randseed		; add to the randomness
 
 ;
@@ -280,6 +284,7 @@ wait_cr:
 	bsr read_key
 	cmpa #$0D
 	bne wait_cr
+key_cr:
 	rts
 
 ;
