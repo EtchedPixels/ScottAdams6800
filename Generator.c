@@ -560,6 +560,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	fcb(0);
+	label("zzzz");
 	fclose(output);
 	return 0;
 }
