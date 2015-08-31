@@ -86,6 +86,7 @@ lowclr:
 ;	Assumption: upper is never empty
 ;
 start_upper:
+	jsr word_flush_l
 	ldx #$4000
 1	ldd #$2020
 0	ldaa #$20
@@ -105,6 +106,7 @@ wipeoldupper:
 ;	the low section
 ;
 end_upper:
+	jsr word_flush_u
 0	ldaa nextupper
 0	ldab nextupper+1
 0	addb #$1f
@@ -134,41 +136,133 @@ divider:
 ;	as the higher level justifier is responsible for that
 ;
 chout_upper:
-	ldx nextupper
+	cmpa #' '
+	beq is_space_u
 	cmpa #10
 	beq upper_nl
+	;
+	;	Normal text into the justify buffer
+	;
+chout_queue:
 	anda #63
+	ldx justify
 	staa ,x
 	inx
-upper_st_out:
-	stx nextupper
+	stx justify
+nonl_u:
 	rts
+	;
+	;	Newline
+	;
 upper_nl:
-	ldab nextupper+1
-	andb #$1f		; X position
-	ldaa #$20		; Width
-	sba			; A is now bytes to move on
+	bsr word_flush_u
+upper_nl_raw
+	ldab nextupper+1	; Next position
+	andb #$1f		; X only
+	ldaa #$20		; Length
+	sba			; Bytes remaining
 	ldab #$20
+	ldx nextupper
 upper_spc:			; Clear the rest of the line
 	stab ,x
 	inx
 	deca
 	bne upper_spc
 	bra upper_st_out
+	;
+	;	Space is much like newline and we should probably
+	;	merge them
+	;
+is_space_u:
+	bsr word_flush_u	; Flush the word if any
+	ldaa nextupper+1	; Left hand row ?
+	anda #$1f
+	beq no_output_u		; No trailing spaces printed
+	ldaa #' '
+	;
+	;	Print an upper screen character directly
+	;
+chout_upper_raw:
+	ldx nextupper
+	staa ,x
+	inx
+upper_st_out:
+	stx nextupper
+no_output_u:
+	rts
+
+word_flush_u:
+; FIXME 6800
+	ldd justify
+	subd #justbuf		; space required is now in b
+	ldaa nextupper+1
+	anda #$1f		; column
+	aba
+	cmpa #$1f		; wrapping ?
+	blt no_wrap_u		; it fits
+	jsr upper_nl_raw
+no_wrap_u:
+	ldx #justbuf
+wordfl_u_lp:
+	cpx justify
+	beq wordflush_u_done
+	ldaa ,xp
+0	stx justu_x+1
+1	pshx
+	bsr chout_upper_raw
+0justu_x:
+0	ldx #0
+1	pulx
+	inx
+	bra wordfl_u_lp
+wordflush_u_done:
+	ldx #justbuf
+	stx justify
+	rts
 ;
 ;	Print to the lower screen area
 ;
 chout_lower:
 	cmpa #' '
-	bne notspace
+	beq is_space_l
+	cmpa #10
+	beq lower_nl
+	bra chout_queue
+	;
+	;	Normal text into the justify butter
+	;
+	anda #63
+	ldx justify		; Add it to the justifier buffer
+	staa ,x
+	inx
+	stx justify
+noscroll_l:
+	rts
+	;
+	;	Newline
+	;
+lower_nl:
+	bsr word_flush_l
+	ldaa nextchar+1		; Did we just wrap anyway ?
+	anda #$1f
+	beq noscroll_l
+lower_nl_raw:
+	jsr scroll_lower
+	ldx #$4200-32
+	bra lower_st_out	; Save the position
+	;
+	;	Space is much like newline and we should probably
+	;	merge them
+	;
+is_space_l:
 	bsr word_flush_l	; Flush the word if any
-	ldab nextchar+1		; Left hand row ?
-	andb #$1f
+	ldaa nextchar+1		; Left hand row ?
+	anda #$1f
 	beq no_output_l		; No trailing spaces printed
 	ldaa #' '
-;
-;	Print a lower screen character directly
-;
+	;
+	;	Print a lower screen character directly
+	;
 chout_lower_raw:
 	ldx nextchar
 	cpx #$4200
@@ -184,33 +278,11 @@ lower_st_out:
 	stx nextchar
 no_output_l:
 	rts
-;
-;	Normal symbols and newlines
-;
-notspace:
-	cmpa #10
-	beq lower_nl
-	anda #63
-	ldx justify_l		; Add it to the justifier buffer
-	staa ,x
-	inx
-	stx justify_l
-noscroll_l:
-	rts
-lower_nl:
-	jsr word_flush_l
-	ldaa nextchar+1		; Did we just wrap anyway ?
-	anda #$1f
-	beq noscroll_l
-lower_nl_raw:
-	jsr scroll_lower
-	ldx #$4200-32
-	bra lower_st_out
 
 word_flush_l:
 ; FIXME 6800
-	ldd justify_l
-	subd #justbuf_l		; space required is now in b
+	ldd justify
+	subd #justbuf		; space required is now in b
 	ldaa nextchar+1
 	anda #$1f		; column
 	aba
@@ -218,9 +290,9 @@ word_flush_l:
 	blt no_wrap_l		; it fits
 	jsr lower_nl_raw
 no_wrap_l:
-	ldx #justbuf_l
+	ldx #justbuf
 wordfl_l_lp:
-	cpx justify_l
+	cpx justify
 	beq wordflush_l_done
 	ldaa ,xp
 0	stx just_x+1
@@ -232,13 +304,15 @@ wordfl_l_lp:
 	inx
 	bra wordfl_l_lp
 wordflush_l_done:
-	ldx #justbuf_l
-	stx justify_l
+	ldx #justbuf
+	stx justify
 	rts
 ;
 ;	Print a string of text to the lower window
 ;
 strout_lower:
+	pshb
+strout_lower_l:
 	ldaa ,x
 	beq strout_done
 	anda #63
@@ -248,8 +322,9 @@ strout_lower:
 0	ldx stroutl_x
 1	pulx
 	inx
-	bra strout_lower
+	bra strout_lower_l
 strout_done:
+	pulb
 	rts
 
 0stroutl_x:
@@ -271,6 +346,8 @@ strout_lower_spc:
 ;	Print a string of text to the upper window
 ;
 strout_upper:
+	pshb
+strout_upper_l:
 	ldaa ,x
 	beq strout_done
 0	stx stroutu_x
@@ -279,7 +356,7 @@ strout_upper:
 0	ldx stroutu_x
 1	pulx
 	inx
-	bra strout_upper
+	bra strout_upper_l
 
 0stroutu_x:
 0	fdb 0
@@ -2134,8 +2211,8 @@ clearl:
 	staa carried
 	ldx #$4200
 	stx nextchar
-	ldx #justbuf_l
-	stx justify_l
+	ldx #justbuf
+	stx justify
 	lds #stacktop
 	cli
 	jsr wipe_screen
@@ -2254,9 +2331,9 @@ argp:
 	fdb 0
 args:
 	zmb 10			; max 5 parameters
-justbuf_l:
+justbuf:
 	zmb 32
-justify_l:
+justify:
 	fdb 0
 
 	zmb 256			; overkill
