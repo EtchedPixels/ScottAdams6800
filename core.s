@@ -1,10 +1,7 @@
 ;
 ;	Major items to do
 ;
-;	Random number generator
-;	Justification engine (top and bottom)
 ;	Save and Load
-;	Reset machine correctly
 ;	Rearrange to maximise use of branches via bsr/bra
 ;	Vast amounts of deubugging
 ;	Encrypt text / compression if needed (upper only so should work
@@ -286,7 +283,7 @@ word_flush_l:
 	ldaa nextchar+1
 	anda #$1f		; column
 	aba
-	cmpa #$1f		; wrapping ?
+	cmpa #$20		; wrapping ?
 	blt no_wrap_l		; it fits
 	jsr lower_nl_raw
 no_wrap_l:
@@ -1162,8 +1159,10 @@ cond15:
 	bne cond16
 ;
 ;	Condition 15: Current counter is <= arg
-;	FIXME: should be a 16bit compare!
 ;
+	bsr arghigh
+	cmpa counter
+	bgt condnp_f
 	cmpb counter+1
 	bgt condnp_f
 condfp_f:
@@ -1175,8 +1174,10 @@ cond16:
 	bne cond17
 ;
 ;	Condition 16: Current counter is >= arg
-;	FIXME: should be a 16bit compare!
 ;
+	bsr arghigh
+	cmpa counter
+	blt condnp_f
 	cmpb counter+1
 	blt condnp_f
 	bra condfp_f
@@ -1211,11 +1212,10 @@ cond19:
 ;	Condition 19: Counter is equal to value.
 ;
 	cmpb counter+1
-	beq cbrat_f
+	bne cbrat_f
 	jsr arghigh
 	cmpa counter
-	ldab 
-cbrat_f
+cbrat_f:
 	jmp cbrat
 ;
 ;	If we get this far it is not a valid condition
@@ -1306,7 +1306,7 @@ get_arg16:
 	ldx argp
 0	ldaa ,x
 0	ldab 1,x
-1	ldd ,x		; FIXME: need to adjust high byte
+1	ldd ,x
 	inx
 	inx
 	stx argp
@@ -1575,8 +1575,9 @@ load_counter:
 ;
 act77:
 	bsr load_counter
-	; FIXME - set zero right for 6800
-	beq nodec
+	; Decrement if >= 0
+	bita #$80
+	bne nodec
 0	subb #1
 0	sbca #0
 1	subd #1
@@ -1708,7 +1709,6 @@ noop2:
 ;	Action 88: Two second delay
 ;
 act88:
-	; FIXME - 2 second wait
 	clra
 	clrb
 snooze:
@@ -1824,8 +1824,6 @@ invstuff:
 ;	Followed by condition.b, value.b several times and then by action.b
 ;	several times to form the full line.
 ;
-;	FIXME: conditions are really supposed to allow conds/params > 255,
-;	we don't handle that well yet.
 ;
 
 run_table:
