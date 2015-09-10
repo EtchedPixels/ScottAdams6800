@@ -215,6 +215,7 @@ wordfl_u_lp:
 wordflush_u_done:
 	ldx #justbuf
 	stx justify
+noscroll_l:
 	rts
 ;
 ;	Print to the lower screen area
@@ -225,16 +226,6 @@ chout_lower:
 	cmpa #10
 	beq lower_nl
 	bra chout_queue
-	;
-	;	Normal text into the justify butter
-	;
-	anda #63
-	ldx justify		; Add it to the justifier buffer
-	staa ,x
-	inx
-	stx justify
-noscroll_l:
-	rts
 	;
 	;	Newline
 	;
@@ -312,7 +303,6 @@ strout_lower:
 strout_lower_l:
 	ldaa ,x
 	beq strout_done
-	anda #63
 0	stx stroutl_x
 1	pshx
 	jsr chout_lower
