@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+#	Build a game
+#
+./Generator $1.dat $1.s
+as1 $1.s -b
+X=$(as1 $1.s -s | grep "zzzz" | cut -b12- | tr "[a-z]" "[A-Z]")
+E=$(echo 16i $X Ai 17500 - p | dc)
+echo "Game Size: "$E
+./tapeify  $1.obj $1.c10 17500 $E 17500
