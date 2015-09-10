@@ -74,5 +74,5 @@ copy_abbrev:
 	std linebuf
 	ldd 2,x
 	std linebuf+2
-	clr 4,x
+	clr linebuf+4
 	rts

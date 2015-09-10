@@ -90,5 +90,5 @@ copy_abbrev:
 	staa linebuf+2
 	ldaa 3,x
 	staa linebuf+3
-	clr 4,x
+	clr linebuf+4
 	rts
