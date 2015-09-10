@@ -1160,7 +1160,7 @@ cond15:
 ;
 ;	Condition 15: Current counter is <= arg
 ;
-	bsr arghigh
+	jsr arghigh
 	cmpa counter
 	bgt condnp_f
 	cmpb counter+1
@@ -1175,7 +1175,7 @@ cond16:
 ;
 ;	Condition 16: Current counter is >= arg
 ;
-	bsr arghigh
+	jsr arghigh
 	cmpa counter
 	blt condnp_f
 	cmpb counter+1
