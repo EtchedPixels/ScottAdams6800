@@ -431,6 +431,8 @@ yes_or_no:
 	beq is_yes
 	cmpa #'J'
 	beq is_yes	; German Gremlins!
+	cmpa #'j'
+	beq is_yes
 	cmpa #'n'
 	beq is_no
 	cmpa #'N'
@@ -793,9 +795,7 @@ not_goto_null:
 	ldx #darkdanger		; warn the user
 	jsr strout_lower
 not_dark_goto:
-	ldx #locdata		; look up direction table
-	ldab location
-	jsr getloc_x
+	jsr getloc_x		; look up direction table
 	pulb
 0	jsr abx
 1	abx			; add direction (1-6)
