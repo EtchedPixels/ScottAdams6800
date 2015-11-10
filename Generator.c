@@ -26,6 +26,7 @@ char **Nouns;
 char **Messages;
 Action *Actions;
 int Options;		/* Option flags set */
+int CPU;
 
 static FILE *output;
 static int fcb_n1;
@@ -234,14 +235,25 @@ static void fcb(int v) {
 		fprintf(stderr, "%d: ", v);
 		Fatal("FCB out of range");
 	}
-	fprintf(output, "\tfcb %d\n", v);
+	if (CPU == CPU_Z80)
+		fprintf(output, "\t.db %d\n", v);
+	else if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
+		fprintf(output, "\tfcb %d\n", v);
+	else
+		fprintf(output, "\t%d,\n", v);
 }
 
 static void fcb_cont(int v) {
 	if (v < 0 || v > 255)
 		Fatal("FCB out of range");
-	if (fcb_n1)
-		fprintf(output, "\tfcb %d", v);
+	if (fcb_n1) {
+		if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
+			fprintf(output, "\tfcb %d", v);
+		else if (CPU == CPU_Z80)
+			fprintf(output, "\t.db %d", v);
+		else
+			fprintf(output, "\t%d", v);
+	}
 	else
 		fprintf(output, ", %d", v);
 	fcb_n1 = 0;
@@ -258,19 +270,45 @@ static void fcb_last(void) {
 }
 
 static void label(const char *p) {
-	fprintf(output, "%s:\n", p);
+	if (CPU == CPU_C)
+		fprintf(output, "uint8_t %s[] = {\n", p);
+	else
+		fprintf(output, "%s:\n", p);
+}
+
+static void label_end(const char *p) {
+	if (CPU == CPU_C)
+		fprintf(output, "};\n");
+	else if (p)
+		fprintf(output, "%s_end:\n", p);
 }
 
 static void label_fcb(const char *p, int v) {
-	label(p);
-	fcb(v);
+	if (CPU == CPU_C)
+		fprintf(output, "uint8_t %s = %d\n", p, v);
+	else {
+		label(p);
+		fcb(v);
+	}
+}
+
+static void pointer(const char *p) {
+	if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
+		fprintf(output, "\tfdb %s\n", p);
+	else if (CPU == CPU_Z80)
+		fprintf(output, "\t.dw %s\n", p);
+	else
+		fprintf(output, "\t%s,\n", p);
 }
 
 static void equ(const char *a, int v) {
-	fprintf(output, "%s\tequ %d\n", a, v);
+	if (CPU == CPU_C)
+		fprintf(output, "#define %s %d\n", a, v);
+	else
+		fprintf(output, "%s\tequ %d\n", a, v);
 }
 
-static void string(const char *p)
+static void string(const char *l, const char *p)
 {
 	char c;
 	if (strchr(p, '\''))
@@ -278,19 +316,44 @@ static void string(const char *p)
 	else
 		c  = '\'';
 
-	fprintf(output, "\tfcc %c", c);
-	while(*p) {
-		if (*p != '\n')
-			fprintf(output, "%c", toupper(*p));
-		p++;
+	if (CPU == CPU_C) {
+		if (l)
+			fprintf(output, "uint8_t %s[] = {\n", l);
+		while(*p)
+			fprintf(output, "%d, ", *p++);
+		fprintf(output, "0 };\n");
+	} else if (CPU == CPU_Z80) {
+		if (l)
+			fprintf(output, "%s:", l);
+		fprintf(output, "\t.asciz %c", c);
+		while(*p) {
+			if (*p != '\n')
+				fprintf(output, "%c", *p);
+			p++;
+		}
+		fprintf(output, "%c\n", c);
+	} else {
+		if (l)
+			fprintf(output, "%s:", l);
+		fprintf(output, "\tfcc %c", c);
+		while(*p) {
+			if (*p != '\n')
+				fprintf(output, "%c", toupper(*p));
+			p++;
+		}
+		fprintf(output, "%c\n\tfcb 0\n", c);
 	}
-	fprintf(output, "%c\n\tfcb 0\n", c);
 }
 
 static void outword(char *p) {
 	int i;
 
-	fprintf(output, ";%s\n\tfcb ", p);
+	if (CPU == CPU_C)
+		fprintf(output, "\t/* %s */\n\t", p);
+	else if (CPU == CPU_Z80)
+		fprintf(output, ";%s\n\t.db ", p);
+	else
+		fprintf(output, ";%s\n\tfcb ", p);
 
 	if (*p == '*')	/* Aliasing */
 		*++p |= 0x80;
@@ -303,6 +366,8 @@ static void outword(char *p) {
 		else
 			fprintf(output, "32");
 	}
+	if (CPU == CPU_C)
+		fprintf(output, ",");
 	fprintf(output, "\n");
 }
 
@@ -315,11 +380,11 @@ static void copyin(const char *p) {
 	}
 	while(fgets(buf, 512, i)) {
 		if (*buf == '0') {
-			if (Options & MC6800)
+			if (CPU == CPU_MC6800)
 				fputs(buf + 1, output);
 		}
 		else if (*buf == '1') {
-			if (!(Options & MC6800))
+			if (!(CPU == CPU_MC6800))
 				fputs(buf + 1, output);
 		}
 		else
@@ -357,11 +422,20 @@ int main(int argc, char *argv[])
 				Options|=PREHISTORIC_LAMP;
 				break;
 			case '0':
-				Options|=MC6800;
+				CPU = CPU_MC6800;
+				break;
+			case '1':
+				CPU = CPU_MC6801;
+				break;
+			case 'Z':
+				CPU = CPU_Z80;
+				break;
+			case 'C':
+				CPU = CPU_C;
 				break;
 			case 'h':
 			default:
-				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-0] <gamename> <asmname>.\n",
+				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-0|1|Z|C] <gamename> <asmname>.\n",
 						argv[0]);
 				exit(1);
 		}
@@ -398,22 +472,55 @@ int main(int argc, char *argv[])
 	equ("NUM_OBJ", GameHeader.NumItems);
 	equ("WORDSIZE", GameHeader.WordLength);
 
-	/* Main game file */	
-	copyin("core.s");
+	/* Main game file */
+	if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
+		copyin("core.s");
+	else if (CPU == CPU_Z80)
+		copyin("core-z80.s");
+	else
+		copyin("core-c.c");
 	
 	/* Word handler */
-	sprintf(wname, "word%d%s.s",
-		GameHeader.WordLength,
-		(Options&MC6800)?"-0":"");
+	switch (CPU) {
+		case CPU_MC6800:
+			sprintf(wname, "word%d-0.s", GameHeader.WordLength);
+			break;
+		case CPU_MC6801:
+			sprintf(wname, "word%d.s", GameHeader.WordLength);
+			break;
+		case CPU_Z80:
+			sprintf(wname, "word%d-z80.s", GameHeader.WordLength);
+			break;
+		case CPU_C:
+			sprintf(wname, "word%d-c.c", GameHeader.WordLength);
+			break;
+	}
 	copyin(wname);
 
 	/* Correct text messages */
-	if (Options&YOUARE)
-		copyin("youmsg.s");
-	else
-		copyin("imsg.s");
+	if (CPU == CPU_MC6800 || CPU == CPU_MC6801) {
+		if (Options&YOUARE)
+			copyin("youmsg.s");
+		else
+			copyin("imsg.s");
 
-	copyin("bridge.s");
+		copyin("bridge.s");
+	} else if (CPU == CPU_Z80) {
+		if (Options&YOUARE)
+			copyin("youmsg-z80.s");
+		else
+			copyin("imsg-z80.s");
+
+		copyin("bridge-z80.s");
+	}
+	if (CPU == CPU_C) {
+		if (Options&YOUARE)
+			copyin("youmsg-c.c");
+		else
+			copyin("imsg-c.c");
+
+		copyin("bridge-c.c");
+	}
 
 	if (GameHeader.LightTime > 255) {
 		fprintf(stderr, "Warning: 16bit light time ?\n");
@@ -428,42 +535,69 @@ int main(int argc, char *argv[])
 	label_fcb("lastloc", GameHeader.NumRooms);  
 	label_fcb("startloc", GameHeader.PlayerRoom);
 
-	label("locdata");
-	for (i = 0; i <= GameHeader.NumRooms; i++) {
-		fprintf(output, "\tfdb loctxt_%d\n", i);
-		fprintf(output, "\tfcb %d, %d, %d, %d, %d, %d\n",
-			Rooms[i].Exits[0],
-			Rooms[i].Exits[1],
-			Rooms[i].Exits[2],
-			Rooms[i].Exits[3],
-			Rooms[i].Exits[4],
-			Rooms[i].Exits[5]);
+	if (CPU == CPU_C) {
+		fprintf(output, "struct location locdata[] = {\n");
+		for (i = 0; i <= GameHeader.NumRooms; i++) {
+			fprintf(output, "\t\t{ loctxt_%d, ", i);
+			fprintf(output, " %d, %d, %d, %d, %d, %d }\n",
+				Rooms[i].Exits[0],
+				Rooms[i].Exits[1],
+				Rooms[i].Exits[2],
+				Rooms[i].Exits[3],
+				Rooms[i].Exits[4],
+				Rooms[i].Exits[5]);
+		}
+		fprintf(output, "};\n");
+	} else {
+		label("locdata");
+		for (i = 0; i <= GameHeader.NumRooms; i++) {
+			sprintf(wname, "loctxt_%d\n", i);
+			pointer(wname);
+			if (CPU == CPU_Z80)
+				fprintf(output, "\t.db");
+			else if (CPU == CPU_C)
+				fprintf(output, "BUG");
+			fprintf(output, " %d, %d, %d, %d, %d, %d\n",
+				Rooms[i].Exits[0],
+				Rooms[i].Exits[1],
+				Rooms[i].Exits[2],
+				Rooms[i].Exits[3],
+				Rooms[i].Exits[4],
+				Rooms[i].Exits[5]);
+		}
 	}
 	for (i = 0; i <= GameHeader.NumRooms; i++) {
-		fprintf(output, "loctxt_%d:\n", i);
-		string(Rooms[i].Text);
+		sprintf(wname, "loctxt_%d", i);
+		string(wname, Rooms[i].Text);
 	}
+	label_end(NULL);
 	newlines();
 	label("objinit");
 	for (i = 0; i <= GameHeader.NumItems; i++)
 		fcb(Items[i].InitialLoc);
-	label("objinit_end");
+	label_end("objinit");
+	newlines();
+	for (i = 0; i <= GameHeader.NumItems; i++) {
+		sprintf(wname, "objtxt_%d", i);
+		string(wname, Items[i].Text);
+	}
 	newlines();
 	label("objtext");
-	for (i = 0; i <= GameHeader.NumItems; i++)
-		fprintf(output, "\tfdb objtxt_%d\n", i);
 	for (i = 0; i <= GameHeader.NumItems; i++) {
-		fprintf(output, "objtxt_%d:\n", i);
-		string(Items[i].Text);
+		sprintf(wname, "objtxt_%d", i);
+		pointer(wname);
 	}
-	newlines();
-	label("msgptr");
-	for (i = 0; i <= GameHeader.NumMessages; i++)
-		fprintf(output, "\tfdb msgtxt_%d\n", i);
+	label_end(NULL);
 	for (i = 0; i <= GameHeader.NumMessages; i++) {
-		fprintf(output, "msgtxt_%d:\n", i);
-		string(Messages[i]);
+		sprintf(wname, "msgtxt_%d", i);
+		string(wname, Messages[i]);
 	}
+	label("msgptr");
+	for (i = 0; i <= GameHeader.NumMessages; i++) {
+		sprintf(wname, "msgtxt_%d", i);
+		pointer(wname);
+	}
+	label_end(NULL);
 	newlines();
 	label("status");
 	acts = 0;
@@ -481,12 +615,19 @@ int main(int argc, char *argv[])
 			label("actions");
 		}
 
+		if (CPU == CPU_C)
+			fprintf(output, "/* ");
+		else
+			fprintf(output, "; ");
 		if (v)
-			fprintf(output, "; %-5s %-5s",
+			fprintf(output, "%-5s %-5s",
 				Verbs[v], Nouns[n]?Nouns[n]:"-");
 		else
-			fprintf(output, "; AUTO  %-5d", n);
-		fprintf(output,"\t%s\n", Actions[i].Comment);
+			fprintf(output, "AUTO  %-5d", n);
+		fprintf(output,"\t%s", Actions[i].Comment);
+		if (CPU == CPU_C)
+			fprintf(output, "*/");
+		fprintf(output, "\n");
 
 		if (v == 0) {
 			hdr |= 0x80;
@@ -548,10 +689,12 @@ int main(int argc, char *argv[])
 	for (i = 0; i <= GameHeader.NumWords; i++)
 		outword(Verbs[i]);
 	fcb(0);
+	label_end(NULL);
 	label("nouns");
 	for (i = 0; i <= GameHeader.NumWords; i++)
 		outword(Nouns[i]);
 	fcb(0);
+	label_end(NULL);
 	label("automap");
 	for (i = 0; i <= GameHeader.NumItems; i++) {
 		if (Items[i].AutoGet) {
@@ -560,7 +703,10 @@ int main(int argc, char *argv[])
 		}
 	}
 	fcb(0);
-	label("zzzz");
+	label_end(NULL);
+
+	if (CPU != CPU_C)
+		label("zzzz");
 	fclose(output);
 	return 0;
 }

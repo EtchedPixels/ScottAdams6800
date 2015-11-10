@@ -50,5 +50,9 @@ typedef struct
 #define SCOTTLIGHT	2	/* Authentic Scott Adams light messages */
 #define DEBUGGING	4
 #define PREHISTORIC_LAMP 8	/* Destroy the lamp (very old databases) */
-#define MC6800		16	/* Avoid LDD, STD, PSHX, PULX, ABX */
 
+#define CPU_MC6800	0	/* Avoid LDD, STD, PSHX, PULX, ABX */
+#define CPU_MC6801	1	/* 6801 - using the extra instructions */
+#define CPU_Z80		2	/* Z80, but avoiding IX, IY etc so can
+                                   be ported to ZX81 and co */
+#define CPU_C		3	/* 'C' target */
