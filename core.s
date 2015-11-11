@@ -667,7 +667,7 @@ do_command:
 	beq do_command_1
 	deca
 	bne light_ok
-	clr bitflags+LIGHTOUT		; light goes out
+	clr bitflags+LIGHTOUT		; light goes out FIXME CLR or SET ?
 	cmpb #255
 	beq seelight
 	cmpb location
@@ -675,10 +675,10 @@ do_command:
 seelight:
 	ldx #lightout
 	jsr strout_lower
+	inc redraw
 unseenl:
 ; Earliest engine only
 ;	clr objloc+LIGHT_SOURCE
-	inc redraw
 	bra do_command_1
 light_ok:
 	cmpa #25			; warnings start here
