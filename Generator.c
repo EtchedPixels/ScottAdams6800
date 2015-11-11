@@ -252,10 +252,12 @@ static void fcb_cont(int v) {
 		else if (CPU == CPU_Z80)
 			fprintf(output, "\t.db %d", v);
 		else
-			fprintf(output, "\t%d", v);
+			fprintf(output, "\t%d, ", v);
 	}
-	else
+	else if (CPU != CPU_C)
 		fprintf(output, ", %d", v);
+	else
+		fprintf(output, "%d, ", v);
 	fcb_n1 = 0;
 }
 
@@ -276,6 +278,13 @@ static void label(const char *p) {
 		fprintf(output, "%s:\n", p);
 }
 
+static void labelptr(const char *p) {
+	if (CPU == CPU_C)
+		fprintf(output, "uint8_t *%s[] = {\n", p);
+	else
+		fprintf(output, "%s:\n", p);
+}
+
 static void label_end(const char *p) {
 	if (CPU == CPU_C)
 		fprintf(output, "};\n");
@@ -285,7 +294,7 @@ static void label_end(const char *p) {
 
 static void label_fcb(const char *p, int v) {
 	if (CPU == CPU_C)
-		fprintf(output, "uint8_t %s = %d\n", p, v);
+		fprintf(output, "uint8_t %s = %d;\n", p, v);
 	else {
 		label(p);
 		fcb(v);
@@ -477,8 +486,6 @@ int main(int argc, char *argv[])
 		copyin("core.s");
 	else if (CPU == CPU_Z80)
 		copyin("core-z80.s");
-	else
-		copyin("core-c.c");
 	
 	/* Word handler */
 	switch (CPU) {
@@ -535,11 +542,17 @@ int main(int argc, char *argv[])
 	label_fcb("lastloc", GameHeader.NumRooms);  
 	label_fcb("startloc", GameHeader.PlayerRoom);
 
+	for (i = 0; i <= GameHeader.NumRooms; i++) {
+		sprintf(wname, "loctxt_%d", i);
+		string(wname, Rooms[i].Text);
+	}
+	newlines();
+
 	if (CPU == CPU_C) {
 		fprintf(output, "struct location locdata[] = {\n");
 		for (i = 0; i <= GameHeader.NumRooms; i++) {
 			fprintf(output, "\t\t{ loctxt_%d, ", i);
-			fprintf(output, " %d, %d, %d, %d, %d, %d }\n",
+			fprintf(output, " %d, %d, %d, %d, %d, %d }, \n",
 				Rooms[i].Exits[0],
 				Rooms[i].Exits[1],
 				Rooms[i].Exits[2],
@@ -566,12 +579,6 @@ int main(int argc, char *argv[])
 				Rooms[i].Exits[5]);
 		}
 	}
-	for (i = 0; i <= GameHeader.NumRooms; i++) {
-		sprintf(wname, "loctxt_%d", i);
-		string(wname, Rooms[i].Text);
-	}
-	label_end(NULL);
-	newlines();
 	label("objinit");
 	for (i = 0; i <= GameHeader.NumItems; i++)
 		fcb(Items[i].InitialLoc);
@@ -582,7 +589,7 @@ int main(int argc, char *argv[])
 		string(wname, Items[i].Text);
 	}
 	newlines();
-	label("objtext");
+	labelptr("objtext");
 	for (i = 0; i <= GameHeader.NumItems; i++) {
 		sprintf(wname, "objtxt_%d", i);
 		pointer(wname);
@@ -592,7 +599,7 @@ int main(int argc, char *argv[])
 		sprintf(wname, "msgtxt_%d", i);
 		string(wname, Messages[i]);
 	}
-	label("msgptr");
+	labelptr("msgptr");
 	for (i = 0; i <= GameHeader.NumMessages; i++) {
 		sprintf(wname, "msgtxt_%d", i);
 		pointer(wname);
@@ -612,6 +619,7 @@ int main(int argc, char *argv[])
 		n = Actions[i].Vocab % 150;
 		if (acts == 0 && v) {
 			acts = 1;
+			label_end(NULL);
 			label("actions");
 		}
 
@@ -684,6 +692,7 @@ int main(int argc, char *argv[])
 		}
 	}
 	fcb(255);
+	label_end(NULL);
 	newlines();
 	label("verbs");
 	for (i = 0; i <= GameHeader.NumWords; i++)
@@ -707,6 +716,8 @@ int main(int argc, char *argv[])
 
 	if (CPU != CPU_C)
 		label("zzzz");
+	else
+		copyin("core-c.c");
 	fclose(output);
 	return 0;
 }
