@@ -555,7 +555,9 @@ whichwordl:
 	jr nz,alias
 	ld e,d			; take a copy of the code
 alias:
+	push hl
 	call wordeq
+	pop hl
 	jr z,foundword
 	ld bc,WORDSIZE
 	add hl,bc
@@ -1933,7 +1935,9 @@ autonoun:
 	cp 255
 	jr z, noauto
 autonounl:
+	push hl
 	call wordeq
+	pop hl
 	jr z, foundnoun
 nextnoun:
 	ld de, WORDSIZE+1	; 5 bytes per entry
