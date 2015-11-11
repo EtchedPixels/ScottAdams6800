@@ -1,3 +1,9 @@
+#include <stdint.h>
+
+struct location {
+  uint8_t *text;
+  uint8_t exit[6];
+};
 
 const char toomuch[] = { "I am carrying too much. " };
 const char dead[] = { "I am dead.\n" };
@@ -31,5 +37,5 @@ const char obexit[] = { "\nObvious exits: " };
 const char canalsosee[] = { "I can also see: " };
 const char playagain[] = { "Do you want to play again Y/N" };
 const char invcond[] = { "INVCOND" };
-const char *exitmsgptr = { "North", "South", "East", "West", "Up", "Down" };
+const char *exitmsgptr[] = { "North", "South", "East", "West", "Up", "Down" };
 
