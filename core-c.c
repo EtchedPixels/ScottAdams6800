@@ -31,6 +31,9 @@ static uint32_t bitflags;
 static int16_t counter;
 static int16_t counter_array[16];
 static uint8_t redraw;
+static uint8_t rows, cols;
+
+static void error(const char *p);
 
 #define VERB_GO		1
 #define VERB_GET	10
@@ -40,39 +43,99 @@ static uint8_t redraw;
 #define DARKFLAG	15
 #define LIGHT_SOURCE	9
 
-/* Hackish temporary I/O code */
+#define REDRAW		1
+#define REDRAW_MAYBE	2
+
+#define CONFIG_IO_SIMPLE
+
+#ifdef CONFIG_IO_SIMPLE
+
+#define REDRAW_MASK	REDRAW
+
+static char wbuf[80];
+static int wbp = 0;
+static int xpos = 0;
+
+static void display_init(void)
+{
+  char *c;
+#ifdef TIOCGWINSZ
+  struct winsize w;
+  if (ioctl(0, TIOCGWINSZ, &w) != -1) {
+    rows = w.ws_row;
+    cols = ws.ws_col;
+    return;
+  }
+#elif VTSIZE
+  int16_t v = ioctl(0, VTSIZE, 0);
+  if (v != -1) {
+    rows =  v >> 8;
+    cols = v;
+    return;
+  }
+#endif
+  c = getenv("COLS");
+  rows = 25;
+  cols = c ? atoi(c): 80;
+  if (cols == 0)
+    cols = 80;
+}
+
+static void display_exit(void)
+{
+}
+
+static void flush_word(void)
+{
+  write(1, wbuf, wbp);
+  xpos += wbp;
+  wbp = 0;
+}
+
+static void char_out(char c)
+{
+  if (c == '\n') {
+    flush_word();
+    write(1, "\n", 1);
+    xpos = 0;
+    return;
+  }
+  if (c != ' ') {
+    if (wbp < 80)
+      wbuf[wbp++] = c;
+    return;
+  }
+  if (xpos + wbp >= cols) {
+    xpos = 0;
+    write(1,"\n", 1);
+  }
+  flush_word();
+  write(1," ", 1);
+  xpos++;
+}
+
 static void strout_lower(const char *p)
 {
-  write(1, p, strlen(p));
+  while(*p)
+    char_out(*p++);
 }
 
 static void strout_lower_spc(const char *p)
 {
-  write(1, p, strlen(p));
-  write(1, " ", 1);
+  strout_lower(p);
+  char_out(' ');
 }
 
 static void decout_lower(uint16_t v)
 {
   char buf[9];
-  snprintf(buf, 8, "%d", v);
+  snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
   strout_lower(buf);
 }
 
 static void strout_upper(const char *p)
 {
-  write(1, p, strlen(p));
-}
-
-static void exit_game(uint8_t code)
-{
-  exit(code);
-}
-
-static void error(const char *p)
-{
-  write(2, p, strlen(p));
-  exit_game(1);
+  strout_lower(p);
 }
 
 static char readchar(void)
@@ -82,6 +145,154 @@ static char readchar(void)
     return -1;
   return c;
 }
+
+static void line_input(void)
+{
+  int l = read(0, linebuf, sizeof(linebuf));
+  if (l < 0)
+    error("read");
+  linebuf[l] = 0;
+  if (l && linebuf[l-1] == '\n')
+    linebuf[l-1] = 0;
+}
+
+static void begin_upper(void)
+{
+  strout_upper("\n\n\n\n");
+}
+
+static void end_upper(void)
+{
+  uint8_t l = cols;
+  char_out('\n');
+  while(l--)
+    char_out('-');
+  char_out('\n');
+}
+
+#endif
+
+#ifdef CONFIG_IO_CURSES
+
+#define REDRAW_MASK	(REDRAW|REDRAW_MAYBE)
+
+static char wbuf[80];
+static int wbp = 0;
+static int xpos = 0;
+
+static void display_init(void)
+{
+  char *c;
+#ifdef TIOCGWINSZ
+  struct winsize w;
+  if (ioctl(0, TIOCGWINSZ, &w) != -1) {
+    rows = w.ws_row;
+    cols = ws.ws_col;
+    return;
+  }
+#elif VTSIZE
+  int16_t v = ioctl(0, VTSIZE, 0);
+  if (v != -1) {
+    rows =  v >> 8;
+    cols = v;
+    return;
+  }
+#endif
+  c = getenv("COLS");
+  rows = 25;
+  cols = c ? atoi(c): 80;
+  if (cols == 0)
+    cols = 80;
+}
+
+static void display_exit(void)
+{
+}
+
+static void flush_word(void)
+{
+  write(1, wbuf, wbp);
+  xpos += wbp;
+  wbp = 0;
+}
+
+static void char_out(char c)
+{
+  if (c == '\n') {
+    flush_word();
+    if (xpos)
+      write(1, "\n", 1);
+    xpos = 0;
+    return;
+  }
+  if (c != ' ') {
+    if (wbp < 80)
+      wbuf[wbp++] = c;
+    return;
+  }
+  if (xpos + wbp >= cols) {
+    xpos = 0;
+    write(1,"\n", 1);
+  }
+  flush_word();
+  write(1," ", 1);
+}
+
+static void strout_lower(const char *p)
+{
+  while(*p)
+    char_out(*p++);
+}
+
+static void strout_lower_spc(const char *p)
+{
+  strout_lower(p);
+  char_out(' ');
+}
+
+static void decout_lower(uint16_t v)
+{
+  char buf[9];
+  snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
+  strout_lower(buf);
+}
+
+static void strout_upper(const char *p)
+{
+  strout_lower(p);
+}
+
+static char readchar(void)
+{
+  char c;
+  if (read(0, &c, 1) < 1)
+    return -1;
+  return c;
+}
+
+static void line_input(void)
+{
+  int l = read(0, linebuf, sizeof(linebuf));
+  if (l < 0)
+    error("read");
+  linebuf[l] = 0;
+  if (l && linebuf[l-1] == '\n')
+    linebuf[l-1] = 0;
+}
+
+static void begin_upper(void)
+{
+  strout_upper("\n\n\n\n");
+}
+
+static void end_upper(void)
+{
+  strout_upper("\n--------------------------------------------------\n");
+}
+
+#endif
+
+/******************** Common code ******************/
 
 static uint8_t yes_or_no(void)
 {
@@ -99,14 +310,18 @@ static void wait_cr(void)
   while(readchar() != '\n');
 }
 
-static void line_input(void)
+
+static void exit_game(uint8_t code)
 {
-  int l = read(0, linebuf, sizeof(linebuf));
-  if (l < 0)
-    error("read");
-  linebuf[l] = 0;
-  if (l && linebuf[l-1] == '\n')
-    linebuf[l-1] = 0;
+  display_exit();
+  exit(code);
+}
+
+static void error(const char *p)
+{
+  display_exit();
+  write(2, p, strlen(p));
+  exit(1);
 }
 
 static uint8_t random_chance(uint8_t v)
@@ -327,10 +542,13 @@ static void action_look(void)
   uint8_t f = 1;
   const uint8_t **op = objtext;
 
-  strout_upper("\n\n\n\n");
+  redraw = 0;
+
+  begin_upper();
 
   if (!islight()) {
     strout_upper(itsdark);
+    end_upper();
     return;
   }
   p = locdata[location].text;
@@ -340,6 +558,7 @@ static void action_look(void)
   else
     strout_upper(youare);
   strout_upper(p);
+  strout_upper(newline);
   strout_upper(obexit);
 
   for (c = 0; c < 6; c++) {
@@ -367,8 +586,7 @@ static void action_look(void)
     }
     op++;
   }
-  strout_upper("\n--------------------------------------------------\n");
-  redraw = 0;
+  end_upper();
 }
 
 static void action_delay(void)
@@ -445,8 +663,10 @@ static void action_inventory(void)
 static void moveitem(uint8_t i, uint8_t l)
 {
   uint8_t *p = objloc + i;
-  if (*p == location || l == location)
-    redraw = 1;
+  if (*p == location)
+    redraw |= REDRAW_MAYBE;
+  if (l == location)
+    redraw |= REDRAW;
   *p = l;
 }
 
@@ -481,7 +701,7 @@ static void run_actions(const uint8_t *p, uint8_t n)
         break;
       case 54: /* Go */
         location = *param++;
-        redraw = 1;
+        redraw = REDRAW;
         break;
       case 55: /* Destroy */
       case 59: /* ?? */
@@ -564,7 +784,7 @@ static void run_actions(const uint8_t *p, uint8_t n)
         tmp = savedroom;
         savedroom = location;
         location = tmp;
-        redraw = 1;
+        redraw = REDRAW;
         break;
       case 81:	/* Swap counter and counter n */
         tmp16 = counter;
@@ -594,7 +814,7 @@ static void run_actions(const uint8_t *p, uint8_t n)
         roomsave[tmp16] = location;
         if (tmp != location) {
           location = tmp;
-          redraw = 1;
+          redraw = REDRAW;
         }
         break;
       case 88:
@@ -738,7 +958,7 @@ void process_light(void)
     bitflags &= ~(1 << LIGHTOUT);	/* Check clear ! */
     if (l == 255 || l == location) {
       strout_lower(lightout);
-      redraw = 1;
+      redraw = REDRAW_MAYBE;
       return;
     }
   }
@@ -765,7 +985,7 @@ void main_loop(void)
     noun = 0;
     run_table(status);
 
-    if (redraw)
+    if (redraw & REDRAW_MASK)
       action_look();
 
     strout_lower(whattodo);
@@ -811,7 +1031,7 @@ void main_loop(void)
           continue;
         }
         location = dir;
-        redraw = 1;
+        redraw = REDRAW;
         continue;
       }
     }
@@ -843,6 +1063,7 @@ void start_game(void)
 
 int main(int argc, char *argv[])
 {
+  display_init();
   setjmp(restart);
   start_game();
   main_loop();
