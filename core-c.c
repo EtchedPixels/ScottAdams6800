@@ -436,7 +436,7 @@ static void scan_input(void)
 void abbrevs(void)
 {
   char *x = skip_spaces(linebuf);
-  char *p = NULL;
+  const char *p = NULL;
   if (x[1] != 0 && x[1] != ' ')
     return;
   switch(toupper(*x)) {
@@ -473,8 +473,8 @@ static const uint8_t *run_conditions(const uint8_t *p, uint8_t n)
   for (i = 0; i < n; i++) {
     uint8_t opc = *p++;
     uint16_t par = *p++ | ((opc & 0xE0) >> 5);
-    opc &= 0x1F;
     uint8_t op = objloc[par];
+    opc &= 0x1F;
 
     switch(opc) {
       case 0:
