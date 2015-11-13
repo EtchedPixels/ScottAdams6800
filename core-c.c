@@ -879,8 +879,11 @@ void run_table(const uint8_t *tp)
           next_line();
         continue;
       }
+      continuation = 0;
       if (!(hdr & 0x20)) {	/* Auto number */
-        if (!random_chance(*tp++))
+        if (random_chance(*tp++))
+          run_line(tp, c, a);
+        else
           next_line();
         continue;
       }
@@ -890,6 +893,7 @@ void run_table(const uint8_t *tp)
         return;
 /*      printf("VN %d %d\n", *tp, tp[1]); */
       linematch = 1;
+      continuation = 0;
       if (*tp++ == verb && (*tp == noun || *tp == 0))
         run_line(tp+1, c, a);
       else
