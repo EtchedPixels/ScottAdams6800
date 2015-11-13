@@ -46,9 +46,172 @@ static void error(const char *p);
 #define REDRAW		1
 #define REDRAW_MAYBE	2
 
-#define CONFIG_IO_SIMPLE
+#ifdef CONFIG_IO_CURSES
 
-#ifdef CONFIG_IO_SIMPLE
+#include <curses.h>
+
+#define REDRAW_MASK	(REDRAW|REDRAW_MAYBE)
+
+static char wbuf[81];
+static int wbp = 0;
+static int xpos = 0, ypos = 0;
+static int bottom;
+WINDOW *topwin, *botwin, *curwin;
+
+static void flush_word(void)
+{
+  wbuf[wbp] = 0;
+  waddstr(curwin, wbuf);
+  xpos += wbp;
+  wbp = 0;
+}
+
+static void new_line(void)
+{
+  xpos = 0;
+  if (curwin == topwin)
+    ypos++;
+  else {
+    scroll(curwin);
+    ypos = bottom;
+  }
+  wmove(curwin, ypos, xpos);
+}
+
+static void char_out(char c)
+{
+  if (c == '\n') {
+    flush_word();
+    new_line();
+    return;
+  }
+  if (c != ' ') {
+    if (wbp < 80)
+      wbuf[wbp++] = c;
+    return;
+  }
+  if (xpos + wbp >= cols)
+    new_line();
+  flush_word();
+  waddch(curwin, ' ');
+  xpos++;
+}
+
+static void strout_lower(const uint8_t *p)
+{
+  while(*p)
+    char_out(*p++);
+}
+
+static void strout_lower_spc(const uint8_t *p)
+{
+  strout_lower(p);
+  char_out(' ');
+}
+
+static void decout_lower(uint16_t v)
+{
+  char buf[9];
+  snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
+  strout_lower((uint8_t *)buf);
+}
+
+static void strout_upper(const uint8_t *p)
+{
+  strout_lower(p);
+}
+
+static char readchar(void)
+{
+  wrefresh(botwin);
+  return wgetch(botwin);
+}
+
+static void line_input(void)
+{
+  int c;
+  char *p = linebuf;
+
+  do {
+    wmove(botwin, ypos, xpos);
+    wrefresh(botwin);
+    c = wgetch(botwin);
+    if (c == 8 || c == 127) {
+      if (p > linebuf) {
+        xpos--;
+        mvwaddch(botwin, ypos, xpos, ' ');
+        p--;
+      }
+      continue;
+    }
+    if (c > 31 && c < 127) {
+      if (p < linebuf + 80 && xpos < cols - 1) {
+        *p++ = c;
+        mvwaddch(botwin, ypos, xpos, c);
+        xpos++;
+      }
+      continue;
+    }
+  }
+  while (c != 13 && c != 10);
+  *p = 0;
+  new_line();
+}
+
+static int saved_x;
+
+static void begin_upper(void)
+{
+  saved_x = xpos;
+  curwin = topwin;
+  werase(topwin);
+  ypos = 0;
+  xpos = 0;
+}
+
+static void end_upper(void)
+{
+  flush_word();
+  curwin = botwin;
+  xpos = saved_x;
+  ypos = bottom;
+  wrefresh(topwin);
+}
+
+static void display_init(void)
+{
+  int trow;
+
+  initscr();
+  noecho();
+  cbreak();
+  nonl();
+
+  getmaxyx(stdscr, rows, cols);
+
+  if (rows < 16)
+    error("display too small");
+
+  trow = 10;
+  if (rows / 2 < 10)
+    trow = rows / 2;
+  bottom = rows - trow;
+
+  topwin = newwin(trow, cols, 0, 0);
+  botwin = newwin(bottom--, cols, trow, 0);
+  if (!topwin || !botwin)
+    error("curses");
+  scrollok(botwin, TRUE);
+  curwin = botwin;
+  new_line();
+}
+
+static void display_exit(void)
+{
+  endwin();
+}
+
+#else
 
 #define REDRAW_MASK	REDRAW
 
@@ -114,13 +277,13 @@ static void char_out(char c)
   xpos++;
 }
 
-static void strout_lower(const char *p)
+static void strout_lower(const uint8_t *p)
 {
   while(*p)
     char_out(*p++);
 }
 
-static void strout_lower_spc(const char *p)
+static void strout_lower_spc(const uint8_t *p)
 {
   strout_lower(p);
   char_out(' ');
@@ -130,10 +293,10 @@ static void decout_lower(uint16_t v)
 {
   char buf[9];
   snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
-  strout_lower(buf);
+  strout_lower((uint8_t *)buf);
 }
 
-static void strout_upper(const char *p)
+static void strout_upper(const uint8_t *p)
 {
   strout_lower(p);
 }
@@ -170,125 +333,7 @@ static void end_upper(void)
   char_out('\n');
 }
 
-#endif
 
-#ifdef CONFIG_IO_CURSES
-
-#define REDRAW_MASK	(REDRAW|REDRAW_MAYBE)
-
-static char wbuf[80];
-static int wbp = 0;
-static int xpos = 0;
-
-static void display_init(void)
-{
-  char *c;
-#ifdef TIOCGWINSZ
-  struct winsize w;
-  if (ioctl(0, TIOCGWINSZ, &w) != -1) {
-    rows = w.ws_row;
-    cols = ws.ws_col;
-    return;
-  }
-#elif VTSIZE
-  int16_t v = ioctl(0, VTSIZE, 0);
-  if (v != -1) {
-    rows =  v >> 8;
-    cols = v;
-    return;
-  }
-#endif
-  c = getenv("COLS");
-  rows = 25;
-  cols = c ? atoi(c): 80;
-  if (cols == 0)
-    cols = 80;
-}
-
-static void display_exit(void)
-{
-}
-
-static void flush_word(void)
-{
-  write(1, wbuf, wbp);
-  xpos += wbp;
-  wbp = 0;
-}
-
-static void char_out(char c)
-{
-  if (c == '\n') {
-    flush_word();
-    if (xpos)
-      write(1, "\n", 1);
-    xpos = 0;
-    return;
-  }
-  if (c != ' ') {
-    if (wbp < 80)
-      wbuf[wbp++] = c;
-    return;
-  }
-  if (xpos + wbp >= cols) {
-    xpos = 0;
-    write(1,"\n", 1);
-  }
-  flush_word();
-  write(1," ", 1);
-}
-
-static void strout_lower(const char *p)
-{
-  while(*p)
-    char_out(*p++);
-}
-
-static void strout_lower_spc(const char *p)
-{
-  strout_lower(p);
-  char_out(' ');
-}
-
-static void decout_lower(uint16_t v)
-{
-  char buf[9];
-  snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
-  strout_lower(buf);
-}
-
-static void strout_upper(const char *p)
-{
-  strout_lower(p);
-}
-
-static char readchar(void)
-{
-  char c;
-  if (read(0, &c, 1) < 1)
-    return -1;
-  return c;
-}
-
-static void line_input(void)
-{
-  int l = read(0, linebuf, sizeof(linebuf));
-  if (l < 0)
-    error("read");
-  linebuf[l] = 0;
-  if (l && linebuf[l-1] == '\n')
-    linebuf[l-1] = 0;
-}
-
-static void begin_upper(void)
-{
-  strout_upper("\n\n\n\n");
-}
-
-static void end_upper(void)
-{
-  strout_upper("\n--------------------------------------------------\n");
-}
 
 #endif
 
@@ -304,12 +349,6 @@ static uint8_t yes_or_no(void)
   } while(c != -1 && c != 'N' && c != 'n');
   return 0;
 }
-
-static void wait_cr(void)
-{
-  while(readchar() != '\n');
-}
-
 
 static void exit_game(uint8_t code)
 {
@@ -351,7 +390,7 @@ static char *copyword(char *p)
   return p;
 }
 
-static int wordeq(const char *a, const char *b, uint8_t l)
+static int wordeq(const uint8_t *a, const char *b, uint8_t l)
 {
   while(l--)
     if ((*a++ & 0x7F) != toupper(*b++))
@@ -379,7 +418,7 @@ static uint8_t whichword(const uint8_t *p)
   return 255;
 }
 
-static void scan_noun(uint8_t *x)
+static void scan_noun(char *x)
 {
   x = skip_spaces(x);
   nounbuf = x;
@@ -389,15 +428,15 @@ static void scan_noun(uint8_t *x)
 
 static void scan_input(void)
 {
-  uint8_t *x = copyword(linebuf);
+  char *x = copyword(linebuf);
   verb = whichword(verbs);
   scan_noun(x);
 }
 
 void abbrevs(void)
 {
-  uint8_t *x = skip_spaces(linebuf);
-  uint8_t *p = NULL;
+  char *x = skip_spaces(linebuf);
+  char *p = NULL;
   if (x[1] != 0 && x[1] != ' ')
     return;
   switch(toupper(*x)) {
@@ -537,7 +576,7 @@ uint8_t islight(void)
 static void action_look(void)
 {
   const uint8_t *e;
-  const char *p;
+  const uint8_t *p;
   uint8_t c;
   uint8_t f = 1;
   const uint8_t **op = objtext;
@@ -800,13 +839,13 @@ static void run_actions(const uint8_t *p, uint8_t n)
           counter = -1;
         break;
       case 84:	/* Print noun, newline */
-        strout_lower(nounbuf);
+        strout_lower((uint8_t *)nounbuf);
         /* Fall through */
       case 86:	/* Print newline */
         strout_lower(newline);
         break;
       case 85:	/* Print noun */ 
-        strout_lower(nounbuf);
+        strout_lower((uint8_t *)nounbuf);
         break;
       case 87: /* Swap player and saveroom array entry */
         tmp16 = *param++;
@@ -821,7 +860,7 @@ static void run_actions(const uint8_t *p, uint8_t n)
         action_delay();
         break;
       case 89:
-        *param++;		/* SAGA etc specials */
+        param++;		/* SAGA etc specials */
         break;
       default:
         error("BADACT");
@@ -908,7 +947,7 @@ uint8_t autonoun(uint8_t loc)
   if (*wordbuf == ' ' || *wordbuf == 0)
     return 255;
   while(*p) {
-    if (strncasecmp(p, wordbuf, WORDSIZE) == 0 && objloc[p[WORDSIZE]] == loc)
+    if (strncasecmp((const char *)p, wordbuf, WORDSIZE) == 0 && objloc[p[WORDSIZE]] == loc)
       return p[WORDSIZE];
     p += WORDSIZE + 1;
   }
@@ -976,7 +1015,7 @@ void process_light(void)
 void main_loop(void)
 {
   uint8_t first = 1;
-  uint8_t *p;
+  char *p;
 
   action_look();
   
