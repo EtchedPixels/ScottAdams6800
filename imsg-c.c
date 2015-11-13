@@ -1,7 +1,7 @@
 #include <stdint.h>
 
 struct location {
-  uint8_t *text;
+  const uint8_t *text;
   uint8_t exit[6];
 };
 
@@ -19,7 +19,7 @@ const char lightoutin[] = { "My light runs out in " };
 const char turns[] = { "turns" };
 const char turn[] = { "turn" };
 const char whattodo[] = { "\nTell me what to do ? " };
-const char prompt[] = { "> " };
+const char prompt[] = { "\n> " };
 const char dontknow[] = { "You use word(s) I don't know! " };
 const char givedirn[] = { "Give me a direction too. " };
 const char darkdanger[] = { "Dangerous to move in the dark! " };
@@ -35,7 +35,7 @@ const char youare[] = { "I am in a " };
 const char nonestr[] = { "none" };
 const char obexit[] = { "\nObvious exits: " };
 const char canalsosee[] = { "I can also see: " };
-const char playagain[] = { "Do you want to play again Y/N" };
+const char playagain[] = { "Do you want to play again Y/N: " };
 const char invcond[] = { "INVCOND" };
 const char *exitmsgptr[] = { "North", "South", "East", "West", "Up", "Down" };
 
