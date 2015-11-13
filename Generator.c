@@ -498,11 +498,9 @@ int main(int argc, char *argv[])
 		case CPU_Z80:
 			sprintf(wname, "word%d-z80.s", GameHeader.WordLength);
 			break;
-		case CPU_C:
-			sprintf(wname, "word%d-c.c", GameHeader.WordLength);
-			break;
 	}
-	copyin(wname);
+	if (CPU != CPU_C)
+		copyin(wname);
 
 	/* Correct text messages */
 	if (CPU == CPU_MC6800 || CPU == CPU_MC6801) {
