@@ -550,7 +550,7 @@ int main(int argc, char *argv[])
 		fprintf(output, "const struct location locdata[] = {\n");
 		for (i = 0; i <= GameHeader.NumRooms; i++) {
 			fprintf(output, "\t\t{ loctxt_%d, ", i);
-			fprintf(output, " %d, %d, %d, %d, %d, %d }, \n",
+			fprintf(output, " { %d, %d, %d, %d, %d, %d } }, \n",
 				Rooms[i].Exits[0],
 				Rooms[i].Exits[1],
 				Rooms[i].Exits[2],
