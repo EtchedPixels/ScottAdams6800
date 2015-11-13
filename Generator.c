@@ -273,14 +273,14 @@ static void fcb_last(void) {
 
 static void label(const char *p) {
 	if (CPU == CPU_C)
-		fprintf(output, "uint8_t %s[] = {\n", p);
+		fprintf(output, "const uint8_t %s[] = {\n", p);
 	else
 		fprintf(output, "%s:\n", p);
 }
 
 static void labelptr(const char *p) {
 	if (CPU == CPU_C)
-		fprintf(output, "uint8_t *%s[] = {\n", p);
+		fprintf(output, "const uint8_t *%s[] = {\n", p);
 	else
 		fprintf(output, "%s:\n", p);
 }
@@ -294,7 +294,7 @@ static void label_end(const char *p) {
 
 static void label_fcb(const char *p, int v) {
 	if (CPU == CPU_C)
-		fprintf(output, "uint8_t %s = %d;\n", p, v);
+		fprintf(output, "const uint8_t %s = %d;\n", p, v);
 	else {
 		label(p);
 		fcb(v);
@@ -327,7 +327,7 @@ static void string(const char *l, const char *p)
 
 	if (CPU == CPU_C) {
 		if (l)
-			fprintf(output, "uint8_t %s[] = {\n", l);
+			fprintf(output, "const uint8_t %s[] = {\n", l);
 		while(*p)
 			fprintf(output, "%d, ", *p++);
 		fprintf(output, "0 };\n");
@@ -549,7 +549,7 @@ int main(int argc, char *argv[])
 	newlines();
 
 	if (CPU == CPU_C) {
-		fprintf(output, "struct location locdata[] = {\n");
+		fprintf(output, "const struct location locdata[] = {\n");
 		for (i = 0; i <= GameHeader.NumRooms; i++) {
 			fprintf(output, "\t\t{ loctxt_%d, ", i);
 			fprintf(output, " %d, %d, %d, %d, %d, %d }, \n",
