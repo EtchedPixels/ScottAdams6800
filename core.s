@@ -497,19 +497,15 @@ enter_key:
 ;	Machine specific but for 6801 we can do this
 ;
 random:
-	tab
-	aba		;	a = 2 x chance
-	lsrb		;	b = 0.5 x chance
-	aba		;	gives us 2.5 x the 1 in 100 chance
-			;	versus 0-255
 	ldab randpool	;	pool scrambling
-	eorb $10	;	stir in timer
+	eorb 10		;	stir in timer
 	rolb
 	adcb #0		;	rollover
 	stab randpool	;	stirred
 	clrb		;	B = 0 or 1
 1	cmpa randpool	;	use the timer pool
 	sbcb #0		;	0x00 or 0xFF for no/yes
+	tba
 	rts
 randpool:
 	fcb	0
@@ -518,7 +514,7 @@ randseed:
 	pshb
 	ldab randpool
 	lslb
-	adcb $10
+	adcb 10
 	stab randpool
 	pulb
 	rts
@@ -1837,12 +1833,14 @@ doing_cont:
 	inx			; Skip header byte and go
 	bra do_line
 is_random:
+	clr continuation
 	ldaa 1,x
 	jsr random
 	tstb
 	beq next_line
 	inx			; Skip header byte and random number
 	inx
+	ldaa ,x
 	bra do_line
 ;
 ;	If we are doing continuations and hit a non continuation line
@@ -2408,17 +2406,3 @@ debug3:
 0debug_x:
 0	fdb 0
 
-0abx:	stx tmp_abx
-0	psha
-0	pshb
-0	clra
-0	addb tmp_abx+1
-0	adca tmp_abx
-0	stab tmp_abx+1
-0	staa tmp_abx
-0	pulb
-0	pula
-0	ldx tmp_abx
-0	rts
-0tmp_abx:
-0	fdb 0
