@@ -357,12 +357,19 @@ static void string(const char *l, const char *p)
 static void outword(char *p) {
 	int i;
 
-	if (CPU == CPU_C)
-		fprintf(output, "\t/* %s */\n\t", p);
-	else if (CPU == CPU_Z80)
-		fprintf(output, ";%s\n\t.db ", p);
-	else
-		fprintf(output, ";%s\n\tfcb ", p);
+	if (Options&UNCOMMENTED) {
+		if (CPU == CPU_Z80)
+			fprintf(output,"\t.db ");
+		else if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
+			fprintf(output,"\tfcb ");
+	} else {
+		if (CPU == CPU_C)
+			fprintf(output, "\t/* %s */\n\t", p);
+		else if (CPU == CPU_Z80)
+			fprintf(output, ";%s\n\t.db ", p);
+		else
+			fprintf(output, ";%s\n\tfcb ", p);
+	}
 
 	if (*p == '*')	/* Aliasing */
 		*++p |= 0x80;
@@ -571,6 +578,8 @@ int main(int argc, char *argv[])
 				fprintf(output, "\t.db");
 			else if (CPU == CPU_C)
 				fprintf(output, "BUG");
+			else
+				fprintf(output, "\tfcb");
 			fprintf(output, " %d, %d, %d, %d, %d, %d\n",
 				Rooms[i].Exits[0],
 				Rooms[i].Exits[1],
