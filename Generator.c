@@ -430,6 +430,9 @@ int main(int argc, char *argv[])
 			case 'p':
 				Options|=PREHISTORIC_LAMP;
 				break;
+			case 'u':
+				Options|=UNCOMMENTED;
+				break;
 			case '0':
 				CPU = CPU_MC6800;
 				break;
@@ -444,7 +447,7 @@ int main(int argc, char *argv[])
 				break;
 			case 'h':
 			default:
-				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-0|1|Z|C] <gamename> <asmname>.\n",
+				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-u] [-0|1|Z|C] <gamename> <asmname>.\n",
 						argv[0]);
 				exit(1);
 		}
@@ -621,19 +624,21 @@ int main(int argc, char *argv[])
 			label("actions");
 		}
 
-		if (CPU == CPU_C)
-			fprintf(output, "/* ");
-		else
-			fprintf(output, "; ");
-		if (v)
-			fprintf(output, "%-5s %-5s",
-				Verbs[v], Nouns[n]?Nouns[n]:"-");
-		else
-			fprintf(output, "AUTO  %-5d", n);
-		fprintf(output,"\t%s", Actions[i].Comment);
-		if (CPU == CPU_C)
-			fprintf(output, "*/");
-		fprintf(output, "\n");
+		if (!(Options & UNCOMMENTED)) {
+			if (CPU == CPU_C)
+				fprintf(output, "/* ");
+			else
+				fprintf(output, "; ");
+			if (v)
+				fprintf(output, "%-5s %-5s",
+					Verbs[v], Nouns[n]?Nouns[n]:"-");
+			else
+				fprintf(output, "AUTO  %-5d", n);
+			fprintf(output,"\t%s", Actions[i].Comment);
+			if (CPU == CPU_C)
+				fprintf(output, "*/");
+			fprintf(output, "\n");
+		}
 
 		if (v == 0) {
 			hdr |= 0x80;
@@ -672,8 +677,11 @@ int main(int argc, char *argv[])
 				fcb_cont(v);
 				fcb_cont(n);
 			} else {
-				if (n && n != 100)
+				if (n && n != 100) {
+					if (CPU != CPU_C)
+						n = n *256 / 100;
 					fcb_cont(n);
+				}
 			}
 			fcb_last();
 			for (a = 0; a < cc; a++) {

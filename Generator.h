@@ -50,6 +50,7 @@ typedef struct
 #define SCOTTLIGHT	2	/* Authentic Scott Adams light messages */
 #define DEBUGGING	4
 #define PREHISTORIC_LAMP 8	/* Destroy the lamp (very old databases) */
+#define UNCOMMENTED	16	/* No comments */
 
 #define CPU_MC6800	0	/* Avoid LDD, STD, PSHX, PULX, ABX */
 #define CPU_MC6801	1	/* 6801 - using the extra instructions */
