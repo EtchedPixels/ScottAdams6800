@@ -1,0 +1,7 @@
+#!/bin/sh
+for i in MYST*.DAT
+do
+	j=`LANG=C;echo $i | tr [A-Z] [a-z]`
+	j=`basename -s .dat $j`
+	./Generator -s -i -u -C $i $j.c
+done

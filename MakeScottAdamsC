@@ -1,0 +1,6 @@
+#!/bin/sh
+for i in adv*.dat
+do
+	j=`basename -s .dat $i`
+	./Generator -s -i -u -C $j.dat $j.c
+done
