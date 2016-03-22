@@ -203,7 +203,7 @@ no_wrap_u:
 wordfl_u_lp:
 	cpx justify
 	beq wordflush_u_done
-	ldaa ,xp
+	ldaa ,x
 0	stx justu_x+1
 1	pshx
 	bsr chout_upper_raw
