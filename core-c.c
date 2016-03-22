@@ -5,7 +5,9 @@
 #include <fcntl.h>
 #include <setjmp.h>
 
+#ifdef __linux__
 #include <stdio.h>
+#endif
 
 static jmp_buf restart;
 
@@ -111,9 +113,13 @@ static void strout_lower_spc(const uint8_t *p)
 
 static void decout_lower(uint16_t v)
 {
+#ifdef __linux__
   char buf[9];
   snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
   strout_lower((uint8_t *)buf);
+#else
+  strout_lower((uint8_t *)_itoa(v));
+#endif
 }
 
 static void strout_upper(const uint8_t *p)
@@ -291,9 +297,13 @@ static void strout_lower_spc(const uint8_t *p)
 
 static void decout_lower(uint16_t v)
 {
+#ifdef __linux__
   char buf[9];
   snprintf(buf, 8, "%d", v);	/* FIXME: avoid expensive snprintf */
   strout_lower((uint8_t *)buf);
+#else
+  strout_lower((uint8_t *)_itoa(v));
+#endif
 }
 
 static void strout_upper(const uint8_t *p)
