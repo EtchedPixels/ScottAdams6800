@@ -2204,7 +2204,7 @@ start_game:
 	sei
 setup_obj:
 	ldx #objinit_end
-	lds #objloc_end
+	lds #objloc_end-1
 setup_loop:
 	dex
 	ldaa ,x

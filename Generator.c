@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	equ("NUM_OBJ", GameHeader.NumItems);
+	equ("NUM_OBJ", GameHeader.NumItems + 1);
 	equ("WORDSIZE", GameHeader.WordLength);
 
 	/* Main game file */
@@ -678,6 +678,8 @@ int main(int argc, char *argv[])
 				break;
 			}
 		}
+		if (ac == 0)
+			acode[ac++] = 51;	/* add a nop */
 		hdr |= cc << 2;
 		hdr |= ac - 1;
 
@@ -734,8 +736,9 @@ int main(int argc, char *argv[])
 
 	if (CPU != CPU_C) {
 		label("percentages");
-		for (i = 0; i <= GameHeader.Treasures; i++)
-			fcb((i * 100)/GameHeader.Treasures);
+		if (GameHeader.Treasures)
+			for (i = 0; i <= GameHeader.Treasures; i++)
+				fcb((i * 100)/GameHeader.Treasures);
 		label("zzzz");
 	} else
 		copyin("core-c.c");
