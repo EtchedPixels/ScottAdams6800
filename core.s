@@ -32,6 +32,7 @@ start:
 ;
 wipe_screen:
 	ldx #$4000
+	stx nextupper
 wipeblock:
 
 1	ldd #$2020
@@ -374,21 +375,41 @@ hexout_digit:
 	jmp chout_lower
 
 ;
-;	Decimal output to lower window (0-99 is sufficient)
+;	Decimal output to lower window (0-100 is sufficient)
 ;	
 decout_lower:
 	clrb
-decout_div:
-	suba #$0A
+decout_div100:
+	suba #100
+	bcs decout_div10
+	incb
+	bra decout_div100
+decout_div10:
+	stab tmp8
+	clrb
+	adda #100
+decout_div10l:
+	suba #10
 	bcs decout_mod
 	incb
-	bra decout_div
+	bra decout_div10l
 decout_mod:
-	adda #$0A		; correct overrun
+	adda #10		; correct overrun
+				; A = digits, B = tens, tmp8 = hundreds
 	psha
+	ldaa tmp8		; start with hundreds
+	beq nohundreds
+	bsr hexdigit		; print them
 	tba
+	bra ptens		; if we printed a hundreds always do the
+				; tens
+nohundreds:
+	tba
+	beq notens
+ptens:
 	bsr hexdigit
-	pula
+notens:
+	pula			; always print the low digit
 	bra hexdigit
 
 	
@@ -1715,11 +1736,9 @@ act89:
 ;	Action 65: Display the score
 ;
 ;
-;	FIXME: should give percentages
-;
 ;	The score is computed by counting treasures in the treasure room
 ;	and seeing how many we have. If we have all of them we report so and
-;	quit. It's any oddity of the Scott Adams system that you have to
+;	quit. It's an oddity of the Scott Adams system that you have to
 ;	type "score" to win !
 ;
 act65:
@@ -1731,7 +1750,7 @@ act65:
 score2:
 	ldab treasure
 	cmpb ,x
-	bne notintreas
+	bne notintreas2
 0	stx action_x
 1	pshx
 	jsr getotext_x		; Object texts start * for treasure
@@ -1742,6 +1761,7 @@ score2:
 notintreas:
 0	ldx action_x
 1	pulx
+notintreas2:
 	inx
 	cpx #objloc_end
 	bne score2
@@ -1749,6 +1769,17 @@ notintreas:
 	psha
 	jsr decout_lower
 	ldx #stored_msg2
+	jsr strout_lower
+	; So we could either compute a * 100 / treasures or we could cheat.
+	; Given the math code for percentages for the general case is sucky
+	; and large I vote for cheating
+	ldx #percentages
+	pulb
+	pshb
+	abx
+	ldaa ,x
+	jsr decout_lower
+	ldx #dotnewline
 	jsr strout_lower
 	pula
 	cmpa treasures
@@ -1837,7 +1868,7 @@ is_random:
 	ldaa 1,x
 	jsr random
 	tstb
-	beq next_line
+	bne next_line
 	inx			; Skip header byte and random number
 	inx
 	ldaa ,x
@@ -2201,6 +2232,30 @@ clearl:
 	stx justify
 	lds #stacktop
 	cli
+loadfail:
+	jsr wipe_screen
+	ldx #m_load
+	jsr strout_upper
+loadyn:	jsr yes_or_no
+	tstb
+	bne rungame
+	ldx #m_save
+	jsr strout_upper
+	jsr wait_cr
+
+	ldx $FFE0
+	jsr ,x			; Sync with tape
+	ldd #saveblock
+	std $4278
+	ldaa #NUM_OBJ		; 1 per object
+	ldx $FFE2		; Load block
+	jsr ,x
+	ldd #saveblock+NUM_OBJ
+	std $4278
+	ldaa #86		; rest of space (simple way of splitting it)
+	ldx $FFE2		; to avoid > 255 bytes in one block
+	jsr ,x			; Load second block
+rungame:
 	jsr wipe_screen
 	inc redraw
 	jmp main_loop	
@@ -2224,10 +2279,32 @@ redraw:			; Top display is dirty
 
 
 wordflush:
+	rts
 ;
 ;	Action 71: Save the game position
 ;
 act71:
+	ldx #m_save
+	jsr strout_lower
+	jsr wait_cr
+	ldaa #5
+	staa $4275
+	ldd #128
+	std $422F
+	ldx $FFE8
+	jsr ,x
+	ldd #saveblock
+	std $4278
+	ldab #NUM_OBJ		; 1 per object
+	stab $4276
+	ldx $FFE4
+	jsr ,x
+	ldd #saveblock+NUM_OBJ
+	std $4278
+	ldab #86		; rest of space (simple way of splitting it)
+	stab $4276
+	ldx $FFE4		; to avoid > 255 bytes in one block
+	jsr ,x
 	rts
 
 ;
@@ -2272,6 +2349,13 @@ actab:
 	fdb act87
 	fdb act88
 	fdb act89
+
+m_save: fcc "START TAPE AND HIT ENTER"
+	fcb 10
+	fcb 0
+m_load: fcc "DO YOU WANT TO RESTORE A SAVED GAME ?"
+	fcb 10
+	fcb 0
 
 ;
 ;	Abbreviations: FIXME - might be nice to separate these for non
@@ -2327,7 +2411,8 @@ stacktop:
 	fcb 0
 
 ;
-;	Between here and saveblock_end is saved
+;	Between here and saveblock_end is saved. Adjust save and load if
+; this area changes
 ;
 saveblock:
 
