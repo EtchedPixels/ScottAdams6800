@@ -10,8 +10,7 @@ writable memory is needed.
 
 # Current Status
 
-6800/6801: Plays most games correctly. Fails on Robin Of Sherwood at least
-with problems generating random numbers. No save/load support.
+6800/6801: Complete as far as I am aware
 
 C: Plays the tested games. Choice of ncurses or plain text display. No save
 and load support. Needs a termcap based version adding to keep size down on
@@ -22,10 +21,6 @@ but nothing yet assembled and tested.
 
 # Things To Do
 
-Debug the 6800/6801 random number bugs
-
 Complete the Z80 support
-
-Add game save and load support
 
 Add text compression to get the biggest few games to fit the MC-10 and ZX81
