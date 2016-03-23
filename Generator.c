@@ -342,15 +342,18 @@ static void string(const char *l, const char *p)
 		}
 		fprintf(output, "%c\n", c);
 	} else {
+		int n = 0;
 		if (l)
 			fprintf(output, "%s:", l);
-		fprintf(output, "\tfcc %c", c);
 		while(*p) {
-			if (*p != '\n')
-				fprintf(output, "%c", toupper(*p));
+			if (!(n % 16))
+				fprintf(output, "\n\tfcb ");
+			fprintf(output, "%d", (int)toupper(*p));
+			if ((n++ % 16) != 15)
+				fprintf(output, ",");
 			p++;
 		}
-		fprintf(output, "%c\n\tfcb 0\n", c);
+		fprintf(output, "\n\tfcb 0\n");
 	}
 }
 
@@ -729,9 +732,12 @@ int main(int argc, char *argv[])
 	fcb(0);
 	label_end(NULL);
 
-	if (CPU != CPU_C)
+	if (CPU != CPU_C) {
+		label("percentages");
+		for (i = 0; i <= GameHeader.Treasures; i++)
+			fcb((i * 100)/GameHeader.Treasures);
 		label("zzzz");
-	else
+	} else
 		copyin("core-c.c");
 	fclose(output);
 	return 0;
