@@ -8,7 +8,7 @@ struct location {
 const uint8_t toomuch[] = { "You are carrying too much. " };
 const uint8_t dead[] = { "You are dead.\n" };
 const uint8_t stored_msg[] = { "You have stored " };
-const uint8_t stored_msg2[] = { "treasures. On a scale of 0 to 100, that rates " };
+const uint8_t stored_msg2[] = { " treasures. On a scale of 0 to 100, that rates " };
 const uint8_t dotnewline[] = { ".\n" };
 const uint8_t newline[] = { "\n" };
 const uint8_t carrying[] = { "You are carrying:\n" };

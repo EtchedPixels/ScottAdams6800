@@ -11,7 +11,8 @@ stored_msg:
 	fcc "I HAVE STORED "
 	fcb 0
 stored_msg2:
-	fcc "TREASURES. ON A SCALE OF 0 TO 100, THAT RATES "
+	fcc " TREASURES. ON A SCALE OF 0 TO 100, THAT RATES "
+	fcb 0
 dotnewline:
 	fcc "."
 newline:
