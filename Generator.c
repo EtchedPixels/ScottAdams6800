@@ -27,6 +27,7 @@ char **Messages;
 Action *Actions;
 int Options;		/* Option flags set */
 int CPU;
+uint16_t GameVersion;
 
 static FILE *output;
 static int fcb_n1;
@@ -221,6 +222,9 @@ void LoadDatabase(FILE *f, int loud)
 	if(loud)
 		printf("Version %d.%02d of Adventure ",
 		ct/100,ct%100);
+	GameVersion = ct;
+	if (GameVersion == 0)
+		GameVersion = mn + ni + nw + nr + mc + tr + lt + pr;
 	fscanf(f,"%d",&ct);
 	if(loud)
 		printf("%d.\nLoad Complete.\n\n", ct);
@@ -493,6 +497,7 @@ int main(int argc, char *argv[])
 
 	equ("NUM_OBJ", GameHeader.NumItems + 1);
 	equ("WORDSIZE", GameHeader.WordLength);
+	equ("GAME_MAGIC", GameVersion);
 
 	/* Main game file */
 	if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
