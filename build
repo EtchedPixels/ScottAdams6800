@@ -2,7 +2,7 @@
 #
 #	Build a game
 #
-./Generator $1.dat $1.s
+./Generator -1 $1.[Dd][Aa][Tt] $1.s
 as1 $1.s -b
 X=$(as1 $1.s -s | grep "zzzz" | cut -b12- | tr "[a-z]" "[A-Z]")
 E=$(echo 16i $X Ai 17500 - p | dc)

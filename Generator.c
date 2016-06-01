@@ -628,7 +628,7 @@ int main(int argc, char *argv[])
 	acts = 0;
 	for (i = 0; i <= GameHeader.NumActions; i++) {
 		int v, n;
-		int cc, ac;
+		int cc, ac, tac;
 		int a;
 		uint8_t hdr = 0;
 		uint8_t acode[4];
@@ -683,13 +683,15 @@ int main(int argc, char *argv[])
 				break;
 			}
 		}
+		tac = ac;
+
 		if (ac == 0)
 			acode[ac++] = 51;	/* add a nop */
 		hdr |= cc << 2;
 		hdr |= ac - 1;
 
 		/* Drop out any dummy lines */
-		if (ac || cc) {
+		if (tac || cc) {
 			fcb_first();
 			fcb_cont(hdr);
 			if (v) {
