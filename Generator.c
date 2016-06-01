@@ -140,7 +140,7 @@ void LoadDatabase(FILE *f, int loud)
 		printf("Reading %d actions.\n",na);
 	while(ct<na+1)
 	{
-		if(fscanf(f,"%hd %hd %hd %hd %hd %hd %hd %hd",
+		if(fscanf(f,"%hu %hu %hu %hu %hu %hu %hu %hu",
 			&ap->Vocab,
 			&ap->Condition[0],
 			&ap->Condition[1],
