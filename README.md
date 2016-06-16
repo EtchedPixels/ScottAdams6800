@@ -12,9 +12,8 @@ writable memory is needed.
 
 6800/6801: Complete as far as I am aware
 
-C: Plays the tested games. Choice of ncurses or plain text display. No save
-and load support. Needs a termcap based version adding to keep size down on
-tiny boxes.
+C: Plays the tested games. Choice of ncurses or plain text display. Needs a
+termcap based version adding to keep size down on tiny boxes.
 
 Z80: Most of the code generation and engine put together for a ZX81 target
 but nothing yet assembled and tested.
