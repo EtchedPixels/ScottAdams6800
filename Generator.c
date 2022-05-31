@@ -29,8 +29,14 @@ int Options;		/* Option flags set */
 int CPU;
 uint16_t GameVersion;
 
+
 static FILE *output;
 static int fcb_n1;
+
+typedef unsigned char (*xlate_t)(unsigned char);
+
+static xlate_t xlate;
+
 
 void Fatal(char *x)
 {
@@ -234,13 +240,73 @@ static void newlines(void) {
 	fprintf(output, "\n\n");
 }
 
+static unsigned char xlate_zx81(unsigned char c)
+{
+	/* Space is 0 - annoying in C but not so bad in asm */
+	if (c == ' ')
+		return 0;
+	/* Numbers */
+	if (c >= '0' && c <= '9')
+		return (c - '0') + 0x1C;
+	/* Letters (upper only) */
+	if (c >= 'A' && c <= 'Z')
+		return (c - 'A') + 0x26;
+	if (c >= 'a' && c <= 'z')
+		return (c - 'a') + 0x26;
+	switch(c) {
+	case '`':
+	case '\'':
+	case '"':
+		return 0x0B;
+	case '$':
+		return 0x1D;
+	case ':':
+		return 0x1E;
+	case '?':
+		return 0x1F;
+	case '(':
+	case '[':
+	case '{':
+		return 0x20;
+	case ')':
+	case ']':
+	case '}':
+		return 0x21;
+	case '>':
+		return 0x22;
+	case '<':
+		return 0x23;
+	case '=':
+		return 0x24;
+	case '+':
+		return 0x25;
+	case '-':
+		return 0x26;
+	case '*':
+		return 0x27;
+	case '/':
+		return 0x28;
+	case ';':
+		return 0x29;
+	case ',':
+		return 0x2A;
+	case '!':
+	case '.':
+		return 0x2B;
+	default:
+		fprintf(stderr, "Warning: untranslatable symbol '%c' 0x(%02X) in game.\n", c, c);
+		return 0x80;	/* So unknown symbols show up as a blob */
+	}
+}
+
+
 static void fcb(int v) {
 	if (v < -128 || v > 255) {
 		fprintf(stderr, "%d: ", v);
 		Fatal("FCB out of range");
 	}
 	if (CPU == CPU_Z80)
-		fprintf(output, "\t.db %d\n", v);
+		fprintf(output, "\tdb %d\n", v);
 	else if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
 		fprintf(output, "\tfcb %d\n", v);
 	else
@@ -254,7 +320,7 @@ static void fcb_cont(int v) {
 		if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
 			fprintf(output, "\tfcb %d", v);
 		else if (CPU == CPU_Z80)
-			fprintf(output, "\t.db %d", v);
+			fprintf(output, "\tdb %d", v);
 		else
 			fprintf(output, "\t%d, ", v);
 	}
@@ -309,7 +375,7 @@ static void pointer(const char *p) {
 	if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
 		fprintf(output, "\tfdb %s\n", p);
 	else if (CPU == CPU_Z80)
-		fprintf(output, "\t.dw %s\n", p);
+		fprintf(output, "\tdw %s\n", p);
 	else
 		fprintf(output, "\t%s,\n", p);
 }
@@ -338,13 +404,26 @@ static void string(const char *l, const char *p)
 	} else if (CPU == CPU_Z80) {
 		if (l)
 			fprintf(output, "%s:", l);
-		fprintf(output, "\t.asciz %c", c);
-		while(*p) {
-			if (*p != '\n')
-				fprintf(output, "%c", *p);
-			p++;
+		if (xlate == NULL) {
+			fprintf(output, "\t.asciz %c", c);
+			while(*p) {
+				if (*p != '\n')
+					fprintf(output, "%c", *p);
+				p++;
+			}
+			fprintf(output, "%c\n", c);
+		} else {
+			int ct = 0;
+			while(*p) {
+				if ((ct & 15) == 0)
+					fprintf(output, "\n\tdb ");
+				else 
+					fprintf(output, ", ");
+				fprintf(output, "%d", xlate(*p++));
+				ct++;
+			}
+			fprintf(output, "\n\tdb 255\n");
 		}
-		fprintf(output, "%c\n", c);
 	} else {
 		int n = 0;
 		if (l)
@@ -361,19 +440,33 @@ static void string(const char *l, const char *p)
 	}
 }
 
+static void cstring(const char *l)
+{
+	unsigned obfuscated = Options & UNCOMMENTED;
+	fprintf(output, "\t\"");
+	while(*l) {
+		if (*l == '"' || *l < 32 || *l > 126 || obfuscated)
+			fprintf(output, "\\x%02X", *l);
+		else
+			fputc(*l, output);
+		l++;
+	}
+	fprintf(output, "\",\n");
+}
+
 static void outword(char *p) {
 	int i;
 
 	if (Options&UNCOMMENTED) {
 		if (CPU == CPU_Z80)
-			fprintf(output,"\t.db ");
+			fprintf(output,"\tdb ");
 		else if (CPU == CPU_MC6800 || CPU == CPU_MC6801)
 			fprintf(output,"\tfcb ");
 	} else {
 		if (CPU == CPU_C)
 			fprintf(output, "\t/* %s */\n\t", p);
 		else if (CPU == CPU_Z80)
-			fprintf(output, ";%s\n\t.db ", p);
+			fprintf(output, ";%s\n\tdb ", p);
 		else
 			fprintf(output, ";%s\n\tfcb ", p);
 	}
@@ -422,6 +515,7 @@ int main(int argc, char *argv[])
 	int i;
 	int acts;
 	char wname[32];
+	char *name = argv[0];
 	
 	while(argv[1])
 	{
@@ -459,9 +553,12 @@ int main(int argc, char *argv[])
 			case 'C':
 				CPU = CPU_C;
 				break;
+			case '8':
+				xlate = xlate_zx81;
+				break;
 			case 'h':
 			default:
-				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-u] [-0|1|Z|C] <gamename> <asmname>.\n",
+				fprintf(stderr,"%s: [-h] [-y] [-s] [-i] [-d] [-p] [-u] [-8] [-0|1|Z|C] <gamename> <asmname>.\n",
 						argv[0]);
 				exit(1);
 		}
@@ -477,7 +574,7 @@ int main(int argc, char *argv[])
 
 	if(argc!=3)
 	{
-		fprintf(stderr,"%s <database> <asmfile>.\n",argv[0]);
+		fprintf(stderr,"%s <database> <asmfile>.\n", name);
 		exit(1);
 	}
 	f=fopen(argv[1],"r");
@@ -558,16 +655,19 @@ int main(int argc, char *argv[])
 	label_fcb("lastloc", GameHeader.NumRooms);  
 	label_fcb("startloc", GameHeader.PlayerRoom);
 
-	for (i = 0; i <= GameHeader.NumRooms; i++) {
-		sprintf(wname, "loctxt_%d", i);
-		string(wname, Rooms[i].Text);
+	if (CPU != CPU_C) {
+		for (i = 0; i <= GameHeader.NumRooms; i++) {
+			sprintf(wname, "loctxt_%d", i);
+			string(wname, Rooms[i].Text);
+		}
 	}
 	newlines();
 
 	if (CPU == CPU_C) {
 		fprintf(output, "const struct location locdata[] = {\n");
 		for (i = 0; i <= GameHeader.NumRooms; i++) {
-			fprintf(output, "\t\t{ loctxt_%d, ", i);
+			fprintf(output, "\t\t{ ");
+			cstring(Rooms[i].Text);
 			fprintf(output, " { %d, %d, %d, %d, %d, %d } }, \n",
 				Rooms[i].Exits[0],
 				Rooms[i].Exits[1],
@@ -583,7 +683,7 @@ int main(int argc, char *argv[])
 			sprintf(wname, "loctxt_%d\n", i);
 			pointer(wname);
 			if (CPU == CPU_Z80)
-				fprintf(output, "\t.db");
+				fprintf(output, "\tdb");
 			else if (CPU == CPU_C)
 				fprintf(output, "BUG");
 			else
@@ -602,28 +702,42 @@ int main(int argc, char *argv[])
 		fcb(Items[i].InitialLoc);
 	label_end("objinit");
 	newlines();
-	for (i = 0; i <= GameHeader.NumItems; i++) {
-		sprintf(wname, "objtxt_%d", i);
-		string(wname, Items[i].Text);
+	if (CPU != CPU_C) {
+		for (i = 0; i <= GameHeader.NumItems; i++) {
+			sprintf(wname, "objtxt_%d", i);
+			string(wname, Items[i].Text);
+		}
+		newlines();
+		labelptr("objtext");
+		for (i = 0; i <= GameHeader.NumItems; i++) {
+			sprintf(wname, "objtxt_%d", i);
+			pointer(wname);
+		}
+		label_end(NULL);
+		for (i = 0; i <= GameHeader.NumMessages; i++) {
+			sprintf(wname, "msgtxt_%d", i);
+			string(wname, Messages[i]);
+		}
+		labelptr("msgptr");
+		for (i = 0; i <= GameHeader.NumMessages; i++) {
+			sprintf(wname, "msgtxt_%d", i);
+			pointer(wname);
+		}
+		label_end(NULL);
+		newlines();
+	} else {
+		labelptr("objtext");
+		for (i = 0; i <= GameHeader.NumItems; i++) {
+			cstring(Items[i].Text);
+		}
+		label_end(NULL);
+		labelptr("msgptr");
+		for (i = 0; i <= GameHeader.NumMessages; i++) {
+			cstring(Messages[i]);
+		}
+		label_end(NULL);
+		newlines();
 	}
-	newlines();
-	labelptr("objtext");
-	for (i = 0; i <= GameHeader.NumItems; i++) {
-		sprintf(wname, "objtxt_%d", i);
-		pointer(wname);
-	}
-	label_end(NULL);
-	for (i = 0; i <= GameHeader.NumMessages; i++) {
-		sprintf(wname, "msgtxt_%d", i);
-		string(wname, Messages[i]);
-	}
-	labelptr("msgptr");
-	for (i = 0; i <= GameHeader.NumMessages; i++) {
-		sprintf(wname, "msgtxt_%d", i);
-		pointer(wname);
-	}
-	label_end(NULL);
-	newlines();
 	label("status");
 	acts = 0;
 	for (i = 0; i <= GameHeader.NumActions; i++) {
